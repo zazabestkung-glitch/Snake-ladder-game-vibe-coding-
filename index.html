@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Custom Snakes & Ladders Engine v2</title>
+    <title>Connected Snakes & Ladders Engine v9</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         :root {
             --primary: #4f46e5;
@@ -11,6 +12,7 @@
             --danger: #dc2626;
             --dark: #1f2937;
             --light: #f3f4f6;
+            --mystery: #6b7280;
         }
 
         body {
@@ -25,6 +27,28 @@
 
         h1 { margin-bottom: 5px; color: var(--dark); }
         .subtitle { margin-top: 0; color: #666; margin-bottom: 20px; }
+
+        /* Sync Panel Banner Component */
+        .sync-banner {
+            background: #e0e7ff;
+            border: 1px solid #c7d2fe;
+            color: #3730a3;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .sync-banner input {
+            padding: 6px 10px;
+            border: 1px solid #a5b4fc;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+        }
 
         /* Toolbar styles */
         .toolbar {
@@ -52,18 +76,72 @@
         .btn-mode.active { background-color: var(--primary); color: white; }
         .btn-action { background-color: var(--dark); color: white; }
         .btn-action:hover { opacity: 0.9; }
+        .btn-danger { background-color: var(--danger); color: white; }
+
+        .config-block {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f3f4f6;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--dark);
+        }
+        .btn-mini {
+            padding: 4px 10px;
+            font-size: 14px;
+            background: white;
+            border: 1px solid #d1d5db;
+        }
+
+        .toggle-group {
+            display: inline-flex;
+            background: #e5e7eb;
+            padding: 4px;
+            border-radius: 8px;
+            gap: 2px;
+        }
+        .toggle-group button {
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 6px;
+        }
+        .toggle-group button.active {
+            background: white;
+            color: var(--dark);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .keypad-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-num {
+            background-color: #f3f4f6;
+            border: 1px solid #d1d5db;
+            color: var(--dark);
+            padding: 10px 14px;
+            font-size: 14px;
+        }
+        .btn-num:hover {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
 
         /* Layout Container */
         .main-container {
             display: flex;
             gap: 30px;
-            max-width: 1200px;
+            max-width: 1400px;
             width: 100%;
             justify-content: center;
             align-items: flex-start;
         }
 
-        /* Board Styling */
         .board-wrapper {
             position: relative;
             background: white;
@@ -74,24 +152,35 @@
 
         #board {
             display: grid;
-            grid-template-columns: repeat(10, 75px);
-            grid-auto-rows: 75px;
-            gap: 5px;
+            grid-template-columns: repeat(10, 100px);
+            grid-auto-rows: 100px;
+            gap: 6px;
             background-color: #e5e7eb;
-            padding: 5px;
+            padding: 6px;
             border-radius: 6px;
+            position: relative;
+        }
+
+        #board-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; 
+            z-index: 5;
         }
 
         .tile {
             background-color: white;
-            border-radius: 4px;
+            border-radius: 6px;
             position: relative;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 6px;
+            padding: 8px;
             box-sizing: border-box;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: bold;
             color: #9ca3af;
             cursor: pointer;
@@ -100,20 +189,51 @@
             transition: transform 0.1s;
         }
 
-        .tile:hover { transform: scale(1.02); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .tile-num { font-size: 14px; color: var(--dark); z-index: 2; }
+        .tile:hover { transform: scale(1.02); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .tile-num { font-size: 16px; color: var(--dark); z-index: 2; }
         
         .tile-activity { 
             font-weight: normal; 
             color: #4b5563; 
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap;
+            white-space: normal;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
             max-width: 100%;
             z-index: 2;
+            line-height: 1.2;
         }
 
-        /* Tile image background preview tint */
+        .tile.tile-secret-hidden {
+            background: repeating-linear-gradient(
+                45deg,
+                #f3f4f6,
+                #f3f4f6 10px,
+                #e5e7eb 10px,
+                #e5e7eb 20px
+            );
+            border: 1px dashed #9ca3af;
+        }
+        .tile.tile-secret-hidden .tile-activity {
+            color: var(--mystery);
+            font-style: italic;
+            font-weight: 600;
+        }
+
+        .designer-hidden-badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: #4b5563;
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 9px;
+            z-index: 4;
+        }
+
         .tile-bg-preview {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -123,35 +243,47 @@
             pointer-events: none;
         }
 
-        /* Portal/Transport badging */
-        .transport-badge {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
-            padding: 2px 5px;
-            border-radius: 3px;
-            color: white;
-            font-size: 9px;
-            z-index: 3;
-        }
-        .badge-ladder { background-color: var(--success); }
-        .badge-snake { background-color: var(--danger); }
-
-        /* Player token */
+        /* PLAYER PAWNS PRESETS */
         .player-token {
-            width: 24px;
-            height: 24px;
-            background-color: #ff3366;
-            border: 3px solid white;
+            width: 18px;
+            height: 18px;
+            border: 2px solid white;
             border-radius: 50%;
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
             z-index: 10;
-            transition: all 0.4s ease-in-out;
+            transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
             pointer-events: none;
+        }
+        .p-red    { background-color: #ef4444; }
+        .p-blue   { background-color: #3b82f6; }
+        .p-green  { background-color: #10b981; }
+        .p-yellow { background-color: #eab308; }
+        .p-orange { background-color: #f97316; }
+        .p-purple { background-color: #a855f7; }
+        .p-pink   { background-color: #ec4899; }
+        .p-teal   { background-color: #14b8a6; }
+
+        .turn-card {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            font-size: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .clean-text-log {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 5px;
+            font-weight: 500;
+            border-left: 3px solid #d1d5db;
+            margin-top: 15px;
         }
 
         /* Sidebar Editor */
@@ -160,41 +292,29 @@
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 10px 15px rgba(0,0,0,0.1);
-            width: 300px;
+            width: 320px;
         }
 
-        .form-group {
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: var(--dark); }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        .form-group-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
             font-weight: 600;
             color: var(--dark);
+            cursor: pointer;
+        }
+        .form-group-checkbox input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
         }
 
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        /* Game Log Console */
-        .game-console {
-            background: #111827;
-            color: #10b981;
-            font-family: monospace;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 15px;
-            height: 120px;
-            overflow-y: auto;
-        }
-
-        /* CUSTOM MODAL POPUP WINDOW STYLING */
+        /* POPUP MODAL COMPONENT */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -207,10 +327,7 @@
             pointer-events: none;
             transition: opacity 0.3s ease;
         }
-        .modal-overlay.open {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
         .modal-card {
             background: white;
             padding: 30px;
@@ -222,29 +339,13 @@
             transform: scale(0.8);
             transition: transform 0.3s ease;
         }
-        .modal-overlay.open .modal-card {
-            transform: scale(1);
-        }
-        .modal-title {
-            font-size: 24px;
-            color: var(--dark);
-            margin-top: 0;
-            margin-bottom: 10px;
-        }
-        .modal-image {
-            width: 100%;
-            max-height: 240px;
-            object-fit: cover;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            background-color: #eee;
-            display: none;
-        }
+        .modal-overlay.open .modal-card { transform: scale(1); }
+        .modal-title { font-size: 24px; color: var(--dark); margin-top: 0; margin-bottom: 10px; }
+        .modal-image { width: 100%; max-height: 240px; object-fit: cover; border-radius: 8px; margin-bottom: 15px; background-color: #eee; display: none; }
         
-        /* Video Container Aspect Ratio Wrapper */
         .modal-video-container {
             position: relative;
-            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            padding-bottom: 56.25%;
             height: 0;
             overflow: hidden;
             border-radius: 8px;
@@ -252,206 +353,425 @@
             background-color: #000;
             display: none;
         }
-        .modal-video-container iframe {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            border: 0;
-        }
-
-        .modal-activity-text {
-            font-size: 18px;
-            color: #4b5563;
-            margin-bottom: 25px;
-            line-height: 1.5;
+        .modal-video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+        .modal-activity-text { font-size: 18px; color: #4b5563; margin-bottom: 25px; line-height: 1.5; }
+        
+        /* Dedicated Remote Controller Interface Mode Styling Layout */
+        .controller-only-view {
+            display: none;
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            margin-top: 40px;
         }
     </style>
 </head>
 <body>
 
-    <h1>Customizable Snakes & Ladders</h1>
-    <p class="subtitle">Switch to "Design Mode" to add tile photos, custom activities, and videos!</p>
+    <h1 id="main-heading-title">Customizable Snakes & Ladders</h1>
+    <p id="main-sub-title" class="subtitle">Design maps with dual-device remote tracking!</p>
 
-    <div class="toolbar">
-        <div>
-            <button id="btn-play-mode" class="btn-mode active" onclick="setMode('play')">Play Mode</button>
-            <button id="btn-design-mode" class="btn-mode" onclick="setMode('design')">Design Mode</button>
+    <div class="sync-banner" id="network-sync-ribbon">
+        <div id="sync-status-indicator">🌐 Network Mode: </div>
+        <div class="toggle-group">
+            <button id="net-btn-host" class="active" onclick="switchNetworkRole('host')">📺 Main Board Screen</button>
+            <button id="net-btn-remote" onclick="switchNetworkRole('remote')">📱 Phone Controller Mode</button>
         </div>
-        |
-        <button class="btn-action" onclick="adjustBoardSize(1)">+ Add Tile</button>
-        <button class="btn-action" onclick="adjustBoardSize(-1)">- Remove Tile</button>
-        |
-        <button id="btn-dice" class="btn-action" style="background-color: var(--success);" onclick="rollDice()">🎲 Roll Dice</button>
+        <div id="room-code-group">
+            <span>Your Game ID Code:</span>
+            <input type="text" id="sync-room-input" readonly size="8">
+            <button id="btn-connect-room" class="btn-action" style="display:none; padding:5px 12px;" onclick="connectToHostBoard()">Connect</button>
+        </div>
     </div>
 
-    <div class="main-container">
-        
-        <div class="board-wrapper">
-            <div id="board"></div>
-            <div id="player" class="player-token"></div>
-        </div>
-
-        <div class="sidebar">
-            <h3 id="sidebar-title">Game Info</h3>
+    <div id="primary-app-workspace" style="display: contents;">
+        <div class="toolbar">
+            <div>
+                <button id="btn-play-mode" class="btn-mode active" onclick="setMode('play')">Play Mode</button>
+                <button id="btn-design-mode" class="btn-mode" onclick="setMode('design')">Design Mode</button>
+            </div>
+            |
+            <div class="config-block" id="player-config-ui">
+                <span>Players:</span>
+                <button class="btn-mini" onclick="adjustPlayerCount(-1)">-</button>
+                <span id="lbl-player-count">1</span>
+                <button class="btn-mini" onclick="adjustPlayerCount(1)">+</button>
+            </div>
+            |
+            <div class="form-inline">
+                <button class="btn-action" onclick="adjustBoardSize(1)">+ Add Tile</button>
+                <button class="btn-action" onclick="adjustBoardSize(-1)">- Remove Tile</button>
+            </div>
+            |
+            <div class="toggle-group" id="dice-mode-toggle">
+                <button id="toggle-digi" class="active" onclick="setDiceMode('digital')">📱 Digital</button>
+                <button id="toggle-concrete" onclick="setDiceMode('concrete')">🎲 Concrete</button>
+            </div>
             
-            <div id="design-panel" style="display: none;">
-                <p style="font-size: 13px; color: #666;">Select any tile on the board to edit its attributes below.</p>
-                <div class="form-group">
-                    <label>Selected Tile:</label>
-                    <input type="text" id="edit-tile-id" readonly style="background:#eee;">
+            <div id="dice-interface-zone">
+                <button id="btn-digital-roll" class="btn-action" style="background-color: var(--success);" onclick="processDiceMovement(null)">🎲 Roll Dice</button>
+                
+                <div id="concrete-keypad" class="keypad-container" style="display: none;">
+                    <span style="font-size:13px; font-weight:600; color:var(--dark);">Tap roll:</span>
+                    <button class="btn-num" onclick="processDiceMovement(1)">1</button>
+                    <button class="btn-num" onclick="processDiceMovement(2)">2</button>
+                    <button class="btn-num" onclick="processDiceMovement(3)">3</button>
+                    <button class="btn-num" onclick="processDiceMovement(4)">4</button>
+                    <button class="btn-num" onclick="processDiceMovement(5)">5</button>
+                    <button class="btn-num" onclick="processDiceMovement(6)">6</button>
                 </div>
-                <div class="form-group">
-                    <label>Tile Activity Text:</label>
-                    <input type="text" id="edit-tile-activity" placeholder="e.g., Listen and repeat the dialog">
+            </div>
+            |
+            <button id="btn-global-reset" class="btn-danger" onclick="triggerGlobalReset()">🔄 Reset Game</button>
+        </div>
+
+        <div class="main-container">
+            <div class="board-wrapper">
+                <div style="position: relative;">
+                    <div id="board"></div>
+                    <canvas id="board-canvas"></canvas>
                 </div>
-                <div class="form-group">
-                    <label>Photo URL (Optional background tint):</label>
-                    <input type="text" id="edit-tile-image" placeholder="Paste image link (.jpg, .png)">
-                </div>
-                <div class="form-group">
-                    <label>YouTube Link (Optional prompt video):</label>
-                    <input type="text" id="edit-tile-video" placeholder="Paste YouTube link here">
-                </div>
-                <div class="form-group">
-                    <label>Link Type:</label>
-                    <select id="edit-tile-link-type" onchange="toggleLinkInput()">
-                        <option value="none">None</option>
-                        <option value="ladder">🪜 Ladder (Moves Up)</option>
-                        <option value="snake">🐍 Snake (Drops Down)</option>
-                    </select>
-                </div>
-                <div class="form-group" id="link-target-group" style="display:none;">
-                    <label id="link-target-label">Destination Tile:</label>
-                    <input type="number" id="edit-tile-target" min="1">
-                </div>
-                <button class="btn-action" style="width:100%; background: var(--primary);" onclick="saveTileChanges()">Save Tile Data</button>
+                <div id="pawn-container"></div>
             </div>
 
-            <div id="play-panel">
-                <p><strong>Current Status:</strong> Your turn!</p>
-                <div class="game-console" id="console-log">
-                    Welcome! Press "Roll Dice" to start playing.
+            <div class="sidebar">
+                <h3 id="sidebar-title">Game Info</h3>
+                
+                <div id="design-panel" style="display: none;">
+                    <p style="font-size: 13px; color: #666;">Select any tile on the board to edit its attributes below.</p>
+                    <div class="form-group">
+                        <label>Selected Tile:</label>
+                        <input type="text" id="edit-tile-id" readonly style="background:#eee;">
+                    </div>
+                    
+                    <label class="form-group-checkbox">
+                        <input type="checkbox" id="edit-tile-hidden">
+                        Hide tile details from players (Secret Trap)
+                    </label>
+
+                    <div class="form-group">
+                        <label>Tile Activity Text:</label>
+                        <input type="text" id="edit-tile-activity" placeholder="e.g., Listen and repeat the dialog">
+                    </div>
+                    <div class="form-group">
+                        <label>Photo URL (Optional background tint):</label>
+                        <input type="text" id="edit-tile-image" placeholder="Paste image link (.jpg, .png)">
+                    </div>
+                    <div class="form-group">
+                        <label>YouTube Link (Optional prompt video):</label>
+                        <input type="text" id="edit-tile-video" placeholder="Paste YouTube link here">
+                    </div>
+                    <div class="form-group">
+                        <label>Link Type:</label>
+                        <select id="edit-tile-link-type" onchange="toggleLinkInput()">
+                            <option value="none">None</option>
+                            <option value="ladder">🪜 Ladder (Moves Up)</option>
+                            <option value="snake">🐍 Snake (Drops Down)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="link-target-group" style="display:none;">
+                        <label id="link-target-label">Destination Tile:</label>
+                        <input type="number" id="edit-tile-target" min="1">
+                    </div>
+                    <button class="btn-action" style="width:100%; background: var(--primary);" onclick="saveTileChanges()">Save Tile Data</button>
+                </div>
+
+                <div id="play-panel">
+                    <div id="turn-display-card" class="turn-card p-red">Player 1 Turn</div>
+                    <div class="clean-text-log" id="status-text-display">
+                        Game initialized. Ready for Player 1.
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="mobile-controller-deck" class="controller-only-view">
+        <h2 style="color: var(--dark); margin-top: 0;">Device Remote Deck</h2>
+        <p style="color: #666; font-size: 14px; margin-bottom: 25px;">Connected to Host View Screen. Use buttons below to trigger moves synchronously.</p>
+        
+        <div id="remote-turn-card-display" class="turn-card p-red" style="margin-bottom: 25px; padding: 20px;">Active Player Turn</div>
+        
+        <div style="display: flex; flex-direction: column; gap: 15px; align-items: center; justify-content: center;">
+            <button id="remote-roll-action" class="btn-action" style="background-color: var(--success); width: 85%; padding: 20px; font-size: 20px;" onclick="emitRemoteEvent('ROLL_DICE')">🎲 Remote Roll Dice</button>
+            <button id="remote-reset-action" class="btn-danger" style="width: 85%; padding: 15px; font-size: 16px;" onclick="emitRemoteEvent('RESET_GAME')">🔄 Reset Board Game</button>
+        </div>
+        <p id="remote-log-display" style="margin-top:25px; font-weight:500; font-size:13px; color:var(--success);">Status: Standing by...</p>
     </div>
 
     <div id="activity-modal" class="modal-overlay">
         <div class="modal-card">
-            <h2 class="modal-title" id="modal-tile-header">Tile 10 Challenge</h2>
-            
+            <h2 class="modal-title" id="modal-tile-header">Tile Challenge</h2>
             <div id="modal-video-container" class="modal-video-container">
                 <iframe id="modal-tile-video" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
             </div>
-
             <img id="modal-tile-img" class="modal-image" src="" alt="Activity Preview">
             <p class="modal-activity-text" id="modal-tile-text">Perform the action text here!</p>
-            <button class="btn-action" style="background-color: var(--primary); padding: 12px 30px;" onclick="closeModal()">Complete Challenge</button>
+            <button class="btn-action" style="background-color: var(--primary); padding: 12px 30px;" onclick="closeModal()">Complete Challenge & Pass Turn</button>
         </div>
     </div>
 
     <script>
-        // --- GAME ENGINE STATE ---
         let totalTiles = 40; 
         let currentMode = 'play'; 
+        let diceMode = 'digital'; 
         let selectedTileId = null;
-        let playerPosition = 1;
+        
+        let playerCount = 1; 
+        let activePlayerIndex = 0; 
+        
+        let playerPositions = [1]; 
+        const playerColors = ['p-red', 'p-blue', 'p-green', 'p-yellow', 'p-orange', 'p-purple', 'p-pink', 'p-teal'];
+        const playerNames = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8'];
         let boardData = {};
+
+        // PeerJS Infrastructure variables configuration mapping
+        let peerInstance = null;
+        let p2pConnection = null;
+        let currentNetworkRole = 'host'; 
 
         function initData() {
             for(let i = 1; i <= 100; i++) {
-                boardData[i] = {
-                    id: i,
-                    activity: "",
-                    image: "",
-                    video: "",
-                    transport: null 
-                };
+                boardData[i] = { id: i, activity: "", image: "", video: "", transport: null, hidden: false };
             }
-            
-            // Sample challenge card showing off native YouTube integration
-            boardData[3].activity = "Watch the video prompt and copy the expressions used!";
-            boardData[3].video = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"; 
-            
+            boardData[3].activity = "Surprise task! Read this word out loud: 'Phenomenal'"; 
+            boardData[3].hidden = true; 
             boardData[7].activity = "Sing your favorite song out loud!";
             boardData[7].image = "https://images.unsplash.com/photo-1516280440614-37939bbacd6a?w=500";
-
+            
             boardData[5].transport = { type: 'ladder', target: 14 };
             boardData[18].transport = { type: 'snake', target: 6 };
+            boardData[22].transport = { type: 'ladder', target: 35 };
+            boardData[32].transport = { type: 'snake', target: 15 };
         }
 
-        // FIXED VIDEO PARSING METHOD (Switched gateway to youtube-nocookie.com)
+        // INITIALIZE PEER NETWORK PROTOCOLS
+        function setupPeerNetworkEngine() {
+            // Generates completely random unique 5-digit Room Key ID tags
+            const generatedRoomCode = Math.floor(10000 + Math.random() * 90000).toString();
+            
+            peerInstance = new Peer(`snlroom-${generatedRoomCode}`);
+            
+            peerInstance.on('open', (id) => {
+                document.getElementById('sync-room-input').value = generatedRoomCode;
+                document.getElementById('sync-status-indicator').innerText = "🌐 System Active (Host Mode)";
+            });
+
+            // Handling receiving incoming data pipeline triggers
+            peerInstance.on('connection', (conn) => {
+                p2pConnection = conn;
+                document.getElementById('sync-status-indicator').innerText = "🟢 Controller Connected Successfully!";
+                setupDataPipelineListeners();
+            });
+        }
+
+        function switchNetworkRole(role) {
+            currentNetworkRole = role;
+            document.getElementById('net-btn-host').classList.toggle('active', role === 'host');
+            document.getElementById('net-btn-remote').classList.toggle('active', role === 'remote');
+
+            const workspace = document.getElementById('primary-app-workspace');
+            const remoteDeck = document.getElementById('mobile-controller-deck');
+            const roomInput = document.getElementById('sync-room-input');
+            const connectBtn = document.getElementById('btn-connect-room');
+
+            if(role === 'remote') {
+                workspace.style.setProperty('display', 'none', 'important');
+                remoteDeck.style.display = 'block';
+                document.getElementById('main-heading-title').innerText = "Snakes & Ladders Deck";
+                
+                roomInput.value = "";
+                roomInput.readOnly = false;
+                roomInput.placeholder = "Enter ID";
+                connectBtn.style.display = 'inline-block';
+                document.getElementById('sync-status-indicator').innerText = "📱 Device Status: Unlinked Remote";
+                
+                if(peerInstance) peerInstance.destroy();
+            } else {
+                location.reload(); // Quick reset cleanly handles reverting back structural components safely
+            }
+        }
+
+        function connectToHostBoard() {
+            const code = document.getElementById('sync-room-input').value.trim();
+            if(!code) return alert("Please fill standard input code values.");
+
+            peerInstance = new Peer();
+            peerInstance.on('open', () => {
+                p2pConnection = peerInstance.connect(`snlroom-${code}`);
+                p2pConnection.on('open', () => {
+                    document.getElementById('sync-status-indicator').innerText = "🟢 Linked with Room View Screens!";
+                    document.getElementById('remote-log-display').innerText = "Status: Fully synced connection established.";
+                    setupDataPipelineListeners();
+                });
+            });
+        }
+
+        function setupDataPipelineListeners() {
+            p2pConnection.on('data', (payload) => {
+                if (currentNetworkRole === 'host') {
+                    // Host execution handling logic parsing
+                    if(payload.cmd === 'ROLL_DICE') processDiceMovement(null);
+                    if(payload.cmd === 'RESET_GAME') triggerGlobalReset();
+                } else if (currentNetworkRole === 'remote') {
+                    // Remote syncing logic processing
+                    if(payload.cmd === 'SYNC_STATE') {
+                        const rCard = document.getElementById('remote-turn-card-display');
+                        rCard.className = `turn-card ${payload.color}`;
+                        rCard.innerText = payload.text;
+                    }
+                }
+            });
+        }
+
+        function emitRemoteEvent(commandString) {
+            if(!p2pConnection) return alert("No paired active terminal views tracked yet.");
+            p2pConnection.send({ cmd: commandString });
+        }
+
+        function broadcastStateToRemote() {
+            if(currentNetworkRole === 'host' && p2pConnection) {
+                const card = document.getElementById('turn-display-card');
+                p2pConnection.send({
+                    cmd: 'SYNC_STATE',
+                    color: playerColors[activePlayerIndex],
+                    text: `${playerNames[activePlayerIndex]}'s Turn`
+                });
+            }
+        }
+
+        // CORE GLOBAL STRUCTURAL RESET LOGIC
+        function triggerGlobalReset() {
+            playerPositions = [];
+            for (let i = 0; i < playerCount; i++) {
+                playerPositions.push(1);
+            }
+            activePlayerIndex = 0;
+            
+            // Re-render interface systems safely
+            updateTurnVisual();
+            updateAllPawnsVisual();
+            drawTransportPaths();
+            updateStatusText("🔄 Board has been fully reset! All tokens returned to square 1.");
+            
+            if(currentNetworkRole === 'remote') {
+                document.getElementById('remote-log-display').innerText = "Status: Sent global dashboard wipe sequence command.";
+            }
+        }
+
         function getEmbedVideoUrl(url) {
             if (!url) return "";
             let videoId = "";
-            
             const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
             const match = url.match(regExp);
-            
             if (match && match[2].length === 11) {
-                videoId = match[2];
-                // Uses the enhanced privacy endpoint to bypass local origin security flags
-                return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
+                return `https://www.youtube-nocookie.com/embed/${match[2]}?autoplay=1`;
             }
             return "";
         }
 
-        // --- RENDER ENGINE ---
+        function adjustPlayerCount(amount) {
+            if (currentMode !== 'play') return;
+            let newCount = playerCount + amount;
+            if (newCount < 1 || newCount > 8) return; 
+            
+            playerCount = newCount;
+            document.getElementById('lbl-player-count').innerText = playerCount;
+            
+            triggerGlobalReset();
+            updateStatusText(`Game altered to ${playerCount} players. Tokens sent back to start.`);
+        }
+
+        function buildPlayerPawns() {
+            const container = document.getElementById('pawn-container');
+            container.innerHTML = ''; 
+            
+            for (let i = 0; i < playerCount; i++) {
+                const pawn = document.createElement('div');
+                pawn.className = `player-token ${playerColors[i]}`;
+                pawn.id = `pawn-player-${i}`;
+                container.appendChild(pawn);
+            }
+        }
+
+        function updateTurnVisual() {
+            const card = document.getElementById('turn-display-card');
+            card.className = `turn-card ${playerColors[activePlayerIndex]}`;
+            card.innerText = `${playerNames[activePlayerIndex]}'s Turn`;
+            broadcastStateToRemote();
+        }
+
+        function advanceTurn() {
+            activePlayerIndex = (activePlayerIndex + 1) % playerCount;
+            updateTurnVisual();
+        }
+
         function renderBoard() {
             const board = document.getElementById('board');
             board.innerHTML = '';
             
             const columns = 10;
             const rows = Math.ceil(totalTiles / columns);
-            board.style.gridTemplateColumns = `repeat(${columns}, 75px)`;
+            board.style.gridTemplateColumns = `repeat(${columns}, 100px)`;
 
             for (let r = rows - 1; r >= 0; r--) {
                 for (let c = 0; c < columns; c++) {
-                    let tileNum;
-                    if (r % 2 === 0) {
-                        tileNum = (r * columns) + (c + 1);
-                    } else {
-                        tileNum = (r * columns) + (columns - c);
-                    }
+                    let tileNum = (r % 2 === 0) ? (r * columns) + (c + 1) : (r * columns) + (columns - c);
 
                     if (tileNum <= totalTiles) {
-                        const data = boardData[tileNum] || { id: tileNum, activity: "", image: "", video: "", transport: null };
-                        
+                        const data = boardData[tileNum] || { id: tileNum, activity: "", image: "", video: "", transport: null, hidden: false };
                         const tile = document.createElement('div');
                         tile.className = 'tile';
                         tile.id = `tile-${tileNum}`;
                         tile.onclick = () => handleTileClick(tileNum);
 
-                        if(data.image) {
-                            const bgImg = document.createElement('img');
-                            bgImg.className = 'tile-bg-preview';
-                            bgImg.src = data.image;
-                            tile.appendChild(bgImg);
-                        }
+                        if (data.hidden && currentMode === 'play') {
+                            tile.classList.add('tile-secret-hidden');
+                            
+                            const numSpan = document.createElement('span');
+                            numSpan.className = 'tile-num';
+                            numSpan.innerText = tileNum;
+                            tile.appendChild(numSpan);
 
-                        const numSpan = document.createElement('span');
-                        numSpan.className = 'tile-num';
-                        numSpan.innerText = tileNum;
-                        tile.appendChild(numSpan);
-
-                        if(data.activity) {
                             const actSpan = document.createElement('span');
                             actSpan.className = 'tile-activity';
-                            actSpan.innerText = data.activity;
+                            actSpan.innerText = "❓ Secret Tile";
                             tile.appendChild(actSpan);
-                        }
+                        } else {
+                            if(data.image) {
+                                const bgImg = document.createElement('img');
+                                bgImg.className = 'tile-bg-preview';
+                                bgImg.src = data.image;
+                                tile.appendChild(bgImg);
+                            }
 
-                        if(data.video && !data.activity) {
-                            const actSpan = document.createElement('span');
-                            actSpan.className = 'tile-activity';
-                            actSpan.innerText = "🎬 Video Task";
-                            tile.appendChild(actSpan);
-                        }
+                            const numSpan = document.createElement('span');
+                            numSpan.className = 'tile-num';
+                            numSpan.innerText = tileNum;
+                            tile.appendChild(numSpan);
 
-                        if(data.transport) {
-                            const badge = document.createElement('span');
-                            badge.className = `transport-badge badge-${data.transport.type}`;
-                            badge.innerText = `${data.transport.type === 'ladder' ? '🪜' : '🐍'} ${data.transport.target}`;
-                            tile.appendChild(badge);
+                            if(data.activity) {
+                                const actSpan = document.createElement('span');
+                                actSpan.className = 'tile-activity';
+                                actSpan.innerText = data.activity;
+                                tile.appendChild(actSpan);
+                            } else if(data.video) {
+                                const actSpan = document.createElement('span');
+                                actSpan.className = 'tile-activity';
+                                actSpan.innerText = "🎬 Watch clip task";
+                                tile.appendChild(actSpan);
+                            }
+                            
+                            if (data.hidden && currentMode === 'design') {
+                                const secretBadge = document.createElement('span');
+                                secretBadge.className = 'designer-hidden-badge';
+                                secretBadge.innerText = "HIDDEN";
+                                tile.appendChild(secretBadge);
+                            }
                         }
 
                         board.appendChild(tile);
@@ -462,38 +782,133 @@
                     }
                 }
             }
-            updatePlayerVisual();
+            
+            setTimeout(() => {
+                updateAllPawnsVisual();
+                drawTransportPaths();
+            }, 50);
         }
 
-        // --- NAVIGATION ENGINE ---
+        function drawArrow(ctx, fromX, fromY, toX, toY, styleType) {
+            const arrowLength = 16; 
+            const arrowAngle = Math.PI / 6; 
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+
+            const shortEndX = toX - 12 * Math.cos(angle);
+            const shortEndY = toY - 12 * Math.sin(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(shortEndX, shortEndY);
+
+            if (styleType === 'ladder') {
+                ctx.strokeStyle = 'rgba(139, 94, 60, 0.85)'; // Brown Ladder Path
+                ctx.lineWidth = 6;
+                ctx.setLineDash([6, 6]); 
+                ctx.stroke();
+                ctx.setLineDash([]); 
+                ctx.fillStyle = '#8b5e3c';
+            } else {
+                ctx.strokeStyle = 'rgba(22, 163, 74, 0.85)'; // Green Snake Path
+                ctx.lineWidth = 6;
+                ctx.stroke();
+                ctx.fillStyle = '#16a34a';
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(shortEndX, shortEndY);
+            ctx.lineTo(shortEndX - arrowLength * Math.cos(angle - arrowAngle), shortEndY - arrowLength * Math.sin(angle - arrowAngle));
+            ctx.lineTo(shortEndX - arrowLength * Math.cos(angle + arrowAngle), shortEndY - arrowLength * Math.sin(angle + arrowAngle));
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(fromX, fromY, 6, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function drawTransportPaths() {
+            const canvas = document.getElementById('board-canvas');
+            const board = document.getElementById('board');
+            if (!canvas || !board) return;
+
+            const ctx = canvas.getContext('2d');
+            canvas.width = board.clientWidth;
+            canvas.height = board.clientHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const boardWrapperRect = board.getBoundingClientRect();
+
+            for (let i = 1; i <= totalTiles; i++) {
+                const data = boardData[i];
+                if (data && data.transport && !(data.hidden && currentMode === 'play')) {
+                    const fromTile = document.getElementById(`tile-${i}`);
+                    const toTile = document.getElementById(`tile-${data.transport.target}`);
+
+                    if (fromTile && toTile) {
+                        const fromRect = fromTile.getBoundingClientRect();
+                        const toRect = toTile.getBoundingClientRect();
+
+                        const startX = (fromRect.left - boardWrapperRect.left) + (fromRect.width / 2);
+                        const startY = (fromRect.top - boardWrapperRect.top) + (fromRect.height / 2);
+                        const endX = (toRect.left - boardWrapperRect.left) + (toRect.width / 2);
+                        const endY = (toRect.top - boardWrapperRect.top) + (toRect.height / 2);
+
+                        drawArrow(ctx, startX, startY, endX, endY, data.transport.type);
+                    }
+                }
+            }
+        }
+
+        function setDiceMode(mode) {
+            diceMode = mode;
+            document.getElementById('toggle-digi').classList.toggle('active', mode === 'digital');
+            document.getElementById('toggle-concrete').classList.toggle('active', mode === 'concrete');
+
+            const digiBtn = document.getElementById('btn-digital-roll');
+            const concreteKeypad = document.getElementById('concrete-keypad');
+
+            if (mode === 'digital') {
+                digiBtn.style.display = 'block';
+                concreteKeypad.style.display = 'none';
+            } else {
+                digiBtn.style.display = 'none';
+                concreteKeypad.style.display = 'flex';
+            }
+        }
+
         function setMode(mode) {
             currentMode = mode;
             document.getElementById('btn-play-mode').classList.toggle('active', mode === 'play');
             document.getElementById('btn-design-mode').classList.toggle('active', mode === 'design');
             
+            const digiBtn = document.getElementById('btn-digital-roll');
+            const concreteKeypad = document.getElementById('concrete-keypad');
+
             if(mode === 'design') {
                 document.getElementById('sidebar-title').innerText = "📐 Board Designer";
                 document.getElementById('design-panel').style.display = 'block';
                 document.getElementById('play-panel').style.display = 'none';
-                document.getElementById('btn-dice').disabled = true;
-                logToConsole("Switched to Design Mode. Click tiles to inject custom properties.");
+                digiBtn.disabled = true;
+                Array.from(concreteKeypad.getElementsByTagName('button')).forEach(b => b.disabled = true);
             } else {
                 document.getElementById('sidebar-title').innerText = "🎮 Gameplay Panel";
                 document.getElementById('design-panel').style.display = 'none';
                 document.getElementById('play-panel').style.display = 'block';
-                document.getElementById('btn-dice').disabled = false;
-                logToConsole("Switched to Play Mode. Let's roll!");
+                digiBtn.disabled = false;
+                Array.from(concreteKeypad.getElementsByTagName('button')).forEach(b => b.disabled = false);
             }
+            renderBoard(); 
         }
 
         function adjustBoardSize(amount) {
             if(totalTiles + amount < 10) return alert("Your board must have at least 10 tiles!");
             totalTiles += amount;
-            if(playerPosition > totalTiles) playerPosition = totalTiles;
+            for(let i=0; i<playerPositions.length; i++) {
+                if(playerPositions[i] > totalTiles) playerPositions[i] = totalTiles;
+            }
             renderBoard();
         }
 
-        // --- DESIGN PANEL INTERFACES ---
         function handleTileClick(id) {
             if (currentMode !== 'design') {
                 if(boardData[id]?.activity || boardData[id]?.image || boardData[id]?.video) {
@@ -504,6 +919,7 @@
             
             selectedTileId = id;
             document.getElementById('edit-tile-id').value = id;
+            document.getElementById('edit-tile-hidden').checked = boardData[id]?.hidden || false;
             document.getElementById('edit-tile-activity').value = boardData[id]?.activity || "";
             document.getElementById('edit-tile-image').value = boardData[id]?.image || "";
             document.getElementById('edit-tile-video').value = boardData[id]?.video || "";
@@ -520,13 +936,13 @@
 
         function toggleLinkInput() {
             const type = document.getElementById('edit-tile-link-type').value;
-            const container = document.getElementById('link-target-group');
-            container.style.display = (type === 'none') ? 'none' : 'block';
+            document.getElementById('link-target-group').style.display = (type === 'none') ? 'none' : 'block';
         }
 
         function saveTileChanges() {
             if(!selectedTileId) return alert("Please select a tile on the board first!");
             
+            boardData[selectedTileId].hidden = document.getElementById('edit-tile-hidden').checked;
             boardData[selectedTileId].activity = document.getElementById('edit-tile-activity').value;
             boardData[selectedTileId].image = document.getElementById('edit-tile-image').value;
             boardData[selectedTileId].video = document.getElementById('edit-tile-video').value;
@@ -545,11 +961,15 @@
             }
 
             renderBoard();
-            logToConsole(`Saved modifications for Tile ${selectedTileId}!`);
+            updateStatusText(`Saved modifications for Tile ${selectedTileId}!`);
         }
 
         function showModal(tileId) {
             const data = boardData[tileId];
+            if (data.hidden) {
+                updateStatusText(`💥 Surprise! Landed on a Secret Mystery Tile!`);
+            }
+
             document.getElementById('modal-tile-header').innerText = `🎯 Tile ${tileId} Challenge`;
             document.getElementById('modal-tile-text').innerText = data.activity || "Task square! Follow instructions.";
             
@@ -579,65 +999,101 @@
         function closeModal() {
             document.getElementById('modal-tile-video').src = "";
             document.getElementById('activity-modal').classList.remove('open');
+            advanceTurn();
         }
 
-        // --- GAME MECHANICS ENGINE ---
-        function rollDice() {
+        function processDiceMovement(manualValue) {
             if(currentMode !== 'play') return;
             
-            const dieResult = Math.floor(Math.random() * 6) + 1;
-            logToConsole(`🎲 Rolled a: ${dieResult}`);
+            let dieResult = (diceMode === 'digital') ? Math.floor(Math.random() * 6) + 1 : manualValue;
+            let activePlayerName = playerNames[activePlayerIndex];
             
-            let targetPosition = playerPosition + dieResult;
-            if (targetPosition > totalTiles) return logToConsole(`Bounced back!`);
+            updateStatusText(`${activePlayerName} rolled a **${dieResult}**.`);
+            
+            let targetPosition = playerPositions[activePlayerIndex] + dieResult;
+            
+            if (targetPosition > totalTiles) {
+                updateStatusText(`${activePlayerName} bounced back! Requires exact count.`);
+                advanceTurn();
+                return;
+            }
 
-            playerPosition = targetPosition;
-            updatePlayerVisual();
+            playerPositions[activePlayerIndex] = targetPosition;
+            updateAllPawnsVisual();
 
             setTimeout(() => {
-                const currentTileData = boardData[playerPosition];
-                
+                const currentTileData = boardData[playerPositions[activePlayerIndex]];
+                let requiresModal = false;
+
                 if(currentTileData) {
                     if(currentTileData.activity || currentTileData.image || currentTileData.video) {
-                        showModal(playerPosition);
+                        requiresModal = true;
+                        showModal(playerPositions[activePlayerIndex]);
                     }
 
                     if(currentTileData.transport) {
                         const link = currentTileData.transport;
-                        logToConsole(`⚡ ${link.type.toUpperCase()}! Warp from ${playerPosition} to ${link.target}`);
-                        playerPosition = link.target;
-                        setTimeout(updatePlayerVisual, 500);
+                        updateStatusText(`⚡ ${link.type.toUpperCase()}! ${activePlayerName} jumped from ${playerPositions[activePlayerIndex]} to ${link.target}`);
+                        playerPositions[activePlayerIndex] = link.target;
+                        setTimeout(updateAllPawnsVisual, 500);
                     }
                 }
 
-                if(playerPosition === totalTiles) {
-                    alert("🥳 Congratulations! You reached the final tile!");
-                    playerPosition = 1;
-                    updatePlayerVisual();
+                if(playerPositions[activePlayerIndex] === totalTiles) {
+                    alert(`🥳 GAME OVER! ${activePlayerName} reached the finish line and won!`);
+                    triggerGlobalReset();
+                    return;
+                }
+
+                if(!requiresModal) {
+                    advanceTurn();
                 }
             }, 600);
         }
 
-        function updatePlayerVisual() {
-            const currentTileDOM = document.getElementById(`tile-${playerPosition}`);
-            const playerDOM = document.getElementById('player');
-            if(currentTileDOM && playerDOM) {
-                const rect = currentTileDOM.getBoundingClientRect();
-                const wrapperRect = document.getElementById('board').getBoundingClientRect();
-                playerDOM.style.top = `${rect.top - wrapperRect.top + rect.height/2}px`;
-                playerDOM.style.left = `${rect.left - wrapperRect.left + rect.width/2}px`;
+        function updateAllPawnsVisual() {
+            const boardWrapper = document.getElementById('board').getBoundingClientRect();
+            
+            for (let i = 0; i < playerCount; i++) {
+                const currentPos = playerPositions[i];
+                const currentTileDOM = document.getElementById(`tile-${currentPos}`);
+                const pawnDOM = document.getElementById(`pawn-player-${i}`);
+                
+                if(currentTileDOM && pawnDOM) {
+                    const rect = currentTileDOM.getBoundingClientRect();
+                    let shiftX = 0;
+                    let shiftY = 0;
+                    
+                    if (playerCount > 1) {
+                        const slotIndex = i % 4; 
+                        const rowTier = Math.floor(i / 4); 
+                        shiftX = -30 + (slotIndex * 20); 
+                        shiftY = -20 + (rowTier * 25);   
+                    }
+
+                    const topOffset = rect.top - boardWrapper.top + (rect.height / 2) + shiftY;
+                    const leftOffset = rect.left - boardWrapper.left + (rect.width / 2) + shiftX;
+                    
+                    pawnDOM.style.top = `${topOffset}px`;
+                    pawnDOM.style.left = `${leftOffset}px`;
+                }
             }
         }
 
-        function logToConsole(message) {
-            const consoleBox = document.getElementById('console-log');
-            consoleBox.innerHTML += `<br>> ${message}`;
-            consoleBox.scrollTop = consoleBox.scrollHeight;
+        function updateStatusText(message) {
+            const displayBox = document.getElementById('status-text-display');
+            if(displayBox) displayBox.innerHTML = message;
         }
 
         initData();
+        buildPlayerPawns();
         renderBoard();
-        window.addEventListener('resize', updatePlayerVisual);
+        setupPeerNetworkEngine();
+
+        window.addEventListener('resize', () => {
+            updateAllPawnsVisual();
+            drawTransportPaths();
+        });
     </script>
 </body>
 </html>
