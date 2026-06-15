@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connected Snakes & Ladders Engine v12</title>
-    <!-- Include PeerJS Library for secure, real-time multi-device synchronization -->
+    <title>Connected Snakes & Ladders Engine v13</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -391,7 +390,6 @@
     <h1 id="main-heading-title">Customizable Snakes & Ladders</h1>
     <p id="main-sub-title" class="subtitle">Design maps with dual-device remote tracking!</p>
 
-    <!-- Unified Connection Infrastructure Ribbon Bar -->
     <div class="sync-banner" id="network-sync-ribbon">
         <div id="sync-status-indicator">🌐 Network Mode: </div>
         <div class="toggle-group">
@@ -405,9 +403,7 @@
         </div>
     </div>
 
-    <!-- Main Workspace Container Interface Grid -->
     <div id="primary-app-workspace" style="display: contents;">
-        <!-- Toolbar -->
         <div class="toolbar">
             <div>
                 <button id="btn-play-mode" class="btn-mode active" onclick="setMode('play')">Play Mode</button>
@@ -445,11 +441,9 @@
                 </div>
             </div>
             |
-            <!-- Global Structural Reset Action Button -->
             <button id="btn-global-reset" class="btn-danger" onclick="triggerGlobalReset()">🔄 Reset Game</button>
         </div>
 
-        <!-- Main Section Grid layout structures -->
         <div class="main-container">
             <div class="board-wrapper">
                 <div style="position: relative;">
@@ -459,7 +453,6 @@
                 <div id="pawn-container"></div>
             </div>
 
-            <!-- Dynamic Control Sidebar -->
             <div class="sidebar">
                 <h3 id="sidebar-title">Game Info</h3>
                 
@@ -501,7 +494,6 @@
                     </div>
                     <button class="btn-action" style="width:100%; background: var(--primary);" onclick="saveTileChanges()">Save Tile Data</button>
 
-                    <!-- Save & Load File Architecture Block -->
                     <div class="io-box">
                         <h4 style="margin: 0 0 10px 0; color: var(--dark);">Storage Controls</h4>
                         <button class="btn-action" style="width:100%; background: #059669; margin-bottom: 10px;" onclick="exportMapFile()">💾 Export Map File</button>
@@ -521,21 +513,17 @@
         </div>
     </div>
 
-    <!-- Standalone Dedicated Handheld Mobile Remote View Deck -->
     <div id="mobile-controller-deck" class="controller-only-view">
         <h2 style="color: var(--dark); margin-top: 0;">Device Remote Deck</h2>
         <p style="color: #666; font-size: 14px; margin-bottom: 25px;">Paired to Screen Board. Controls instantly sync live.</p>
         
         <div id="remote-turn-card-display" class="turn-card p-red" style="margin-bottom: 20px; padding: 15px;">Active Player Turn</div>
         
-        <!-- Adaptive Remote Input Interface Panel Container -->
         <div class="remote-ctrl-box">
-            <!-- Digital Panel View Inside Remote Deck -->
             <div id="remote-digital-ui-pane">
                 <button id="remote-roll-action" class="btn-action" style="background-color: var(--success); width: 100%; padding: 18px; font-size: 18px;" onclick="emitRemoteEvent('ROLL_DICE_DIGITAL')">🎲 Remote Roll Dice</button>
             </div>
             
-            <!-- Concrete Panel View Inside Remote Deck -->
             <div id="remote-concrete-ui-pane" style="display: none;">
                 <p style="margin-top: 0; font-weight: bold; font-size: 14px; color: var(--dark);">Tap Concrete Roll Value:</p>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; justify-content: center;">
@@ -553,7 +541,6 @@
         <p id="remote-log-display" style="margin-top:25px; font-weight:500; font-size:13px; color:var(--success);">Status: Standing by...</p>
     </div>
 
-    <!-- CUSTOM POPUP MODAL COMPONENT -->
     <div id="activity-modal" class="modal-overlay">
         <div class="modal-card">
             <h2 class="modal-title" id="modal-tile-header">Tile Challenge</h2>
@@ -1046,23 +1033,37 @@
         function saveTileChanges() {
             if(!selectedTileId) return alert("Please select a tile on the board first!");
             
-            boardData[selectedTileId].hidden = document.getElementById('edit-tile-hidden').checked;
-            boardData[selectedTileId].activity = document.getElementById('edit-tile-activity').value;
-            boardData[selectedTileId].image = document.getElementById('edit-tile-image').value;
-            boardData[selectedTileId].video = document.getElementById('edit-tile-video').value;
-
             const linkType = document.getElementById('edit-tile-link-type').value;
             const targetVal = parseInt(document.getElementById('edit-tile-target').value);
 
+            /* HIGH ACCURACY LINK TYPE NUMBER VALIDATION ROUTINE */
             if(linkType !== 'none') {
                 if(!targetVal || targetVal < 1 || targetVal > totalTiles || targetVal === selectedTileId) {
                     alert("Invalid target placement boundaries.");
                     return;
                 }
+                
+                // Rule 1: Ladders must only climb to HIGHER tile numbers
+                if(linkType === 'ladder' && targetVal <= selectedTileId) {
+                    alert(`🪜 Validation Error: Ladders must climb up! Destination tile (${targetVal}) must be higher than current Tile ${selectedTileId}.`);
+                    return;
+                }
+                
+                // Rule 2: Snakes must only drop down to LOWER tile numbers
+                if(linkType === 'snake' && targetVal >= selectedTileId) {
+                    alert(`🐍 Validation Error: Snakes must drop down! Destination tile (${targetVal}) must be lower than current Tile ${selectedTileId}.`);
+                    return;
+                }
+
                 boardData[selectedTileId].transport = { type: linkType, target: targetVal };
             } else {
                 boardData[selectedTileId].transport = null;
             }
+
+            boardData[selectedTileId].hidden = document.getElementById('edit-tile-hidden').checked;
+            boardData[selectedTileId].activity = document.getElementById('edit-tile-activity').value;
+            boardData[selectedTileId].image = document.getElementById('edit-tile-image').value;
+            boardData[selectedTileId].video = document.getElementById('edit-tile-video').value;
 
             renderBoard();
             updateStatusText(`Saved modifications for Tile ${selectedTileId}!`);
@@ -1071,7 +1072,7 @@
         /* EXPORT MAP CONFIGURATION AS JSON FILE */
         function exportMapFile() {
             const outputPackage = {
-                version: "v12-engine",
+                version: "v13-engine",
                 totalTiles: totalTiles,
                 boardData: boardData
             };
@@ -1096,7 +1097,6 @@
                         totalTiles = parsedData.totalTiles;
                         boardData = parsedData.boardData;
                         
-                        // Reset layout configs cleanly
                         playerPositions = Array(playerCount).fill(1);
                         activePlayerIndex = 0;
 
@@ -1105,7 +1105,7 @@
                         updateTurnVisual();
                         
                         alert("🎯 Map configurations imported and drawn successfully!");
-                        document.getElementById('file-import-input').value = ""; // Clear file selector
+                        document.getElementById('file-import-input').value = ""; 
                     } else {
                         alert("Malformed configuration scheme. Could not load accurately.");
                     }
