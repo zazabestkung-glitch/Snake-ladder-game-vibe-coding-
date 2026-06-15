@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connected Snakes & Ladders Engine v10</title>
+    <title>Connected Snakes & Ladders Engine v11</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -512,7 +512,7 @@
             
             <div id="remote-concrete-ui-pane" style="display: none;">
                 <p style="margin-top: 0; font-weight: bold; font-size: 14px; color: var(--dark);">Tap Concrete Roll Value:</p>
-                <div style="display: grid; grid-template-columns: repeat(3, 15px); gap: 10px; justify-content: center; grid-auto-columns: 65px;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; justify-content: center;">
                     <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(1)">1</button>
                     <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(2)">2</button>
                     <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(3)">3</button>
@@ -573,14 +573,10 @@
             boardData[32].transport = { type: 'snake', target: 15 };
         }
 
-        // STABLE SEPARATED IDENTITY NETWORK ENGINE ENGINE
         function setupPeerNetworkEngine() {
             if (currentNetworkRole !== 'host') return;
 
-            // Generates completely random unique 5-digit Room Key ID tags
             const generatedRoomCode = Math.floor(10000 + Math.random() * 90000).toString();
-            
-            // Host creates a dedicated explicitly listening workspace ID
             peerInstance = new Peer(`snlboard-room-${generatedRoomCode}`);
             
             peerInstance.on('open', (id) => {
@@ -588,14 +584,11 @@
                 document.getElementById('sync-status-indicator').innerText = "🌐 System Active (Host View Screen)";
             });
 
-            // Handling receiving incoming data pipeline triggers
             peerInstance.on('connection', (conn) => {
-                // Keep the existing connection alive, don't allow double binds to wipe instance
                 p2pConnection = conn;
                 document.getElementById('sync-status-indicator').innerText = "🟢 Controller Paired & Synced!";
                 setupDataPipelineListeners();
                 
-                // Immediately synchronize the current turn state and dice configuration parameters right away!
                 setTimeout(() => {
                     broadcastStateToRemote();
                 }, 800);
@@ -628,7 +621,6 @@
                     peerInstance = null;
                 }
             } else {
-                // Instantly re-initiates default configurations safely 
                 location.reload(); 
             }
         }
@@ -637,19 +629,18 @@
             const code = document.getElementById('sync-room-input').value.trim();
             if(!code) return alert("Please type your 5-digit Room Code first.");
 
-            // Create a completely distinct unique controller client peer node 
             peerInstance = new Peer();
             peerInstance.on('open', () => {
                 p2pConnection = peerInstance.connect(`snlboard-room-${code}`);
                 
                 p2pConnection.on('open', () => {
                     document.getElementById('sync-status-indicator').innerText = "🟢 Controller Paired with Main Screen!";
-                    document.getElementById('remote-log-display').innerText = "Linked cleanly. Standing by for gameplay synchronization signals...";
+                    document.getElementById('remote-log-display').innerText = "Linked cleanly. Standing by...";
                     setupDataPipelineListeners();
                 });
 
                 p2pConnection.on('close', () => {
-                    document.getElementById('remote-log-display').innerText = "⚠️ Link terminated. Attempting reconnect structural parameters...";
+                    document.getElementById('remote-log-display').innerText = "⚠️ Link terminated.";
                 });
             });
         }
@@ -659,7 +650,6 @@
 
             p2pConnection.on('data', (payload) => {
                 if (currentNetworkRole === 'host') {
-                    // Host executing structural remote control instructions safely
                     if(payload.cmd === 'ROLL_DICE_DIGITAL') {
                         setDiceMode('digital');
                         processDiceMovement(null);
@@ -672,13 +662,11 @@
                         triggerGlobalReset();
                     }
                 } else if (currentNetworkRole === 'remote') {
-                    // Remote synchronizes UI changes sent from the main board
                     if(payload.cmd === 'SYNC_STATE') {
                         const rCard = document.getElementById('remote-turn-card-display');
                         rCard.className = `turn-card ${payload.color}`;
                         rCard.innerText = payload.text;
 
-                        // Dynamic structural swapping inside the smartphone control view deck layout
                         const digiPane = document.getElementById('remote-digital-ui-pane');
                         const concretePane = document.getElementById('remote-concrete-ui-pane');
 
@@ -689,7 +677,7 @@
                             digiPane.style.display = 'none';
                             concretePane.style.display = 'block';
                         }
-                        document.getElementById('remote-log-display').innerText = `Synced! Game Dice Mode is set to [${payload.dMode.toUpperCase()}]`;
+                        document.getElementById('remote-log-display').innerText = `Synced! Game Dice Mode: [${payload.dMode.toUpperCase()}]`;
                     }
                 }
             });
@@ -716,7 +704,6 @@
             }
         }
 
-        // CORE GLOBAL STRUCTURAL RESET LOGIC
         function triggerGlobalReset() {
             playerPositions = [];
             for (let i = 0; i < playerCount; i++) {
@@ -724,10 +711,11 @@
             }
             activePlayerIndex = 0;
             
+            buildPlayerPawns(); // Dynamically re-renders the DOM token layout structures
             updateTurnVisual();
             updateAllPawnsVisual();
             drawTransportPaths();
-            updateStatusText("🔄 Board has been fully reset! All tokens returned to square 1.");
+            updateStatusText("🔄 Board reset! All tokens returned to square 1.");
             
             if(currentNetworkRole === 'remote') {
                 document.getElementById('remote-log-display').innerText = "Wiped and reset game status successfully.";
@@ -736,7 +724,6 @@
 
         function getEmbedVideoUrl(url) {
             if (!url) return "";
-            let videoId = "";
             const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
             const match = url.match(regExp);
             if (match && match[2].length === 11) {
@@ -753,7 +740,18 @@
             playerCount = newCount;
             document.getElementById('lbl-player-count').innerText = playerCount;
             
-            triggerGlobalReset();
+            // Reinitialize positions array matching updated total counts 
+            playerPositions = [];
+            for (let i = 0; i < playerCount; i++) {
+                playerPositions.push(1);
+            }
+            activePlayerIndex = 0;
+            
+            buildPlayerPawns();   // FIXED: Re-generates token visual elements on the fly
+            updateTurnVisual();   // Updates color codes mapping indexes
+            updateAllPawnsVisual(); // Repositions visual layouts clean on Tile 1
+            drawTransportPaths();
+            
             updateStatusText(`Game altered to ${playerCount} players. Tokens sent back to start.`);
         }
 
