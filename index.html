@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Snakes & Ladders Engine v2</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --dark: #1f2937;
+            --light: #f3f4f6;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { margin-bottom: 5px; color: var(--dark); }
+        .subtitle { margin-top: 0; color: #666; margin-bottom: 20px; }
+
+        /* Toolbar styles */
+        .toolbar {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-mode { background-color: #e5e7eb; color: var(--dark); }
+        .btn-mode.active { background-color: var(--primary); color: white; }
+        .btn-action { background-color: var(--dark); color: white; }
+        .btn-action:hover { opacity: 0.9; }
+
+        /* Layout Container */
+        .main-container {
+            display: flex;
+            gap: 30px;
+            max-width: 1200px;
+            width: 100%;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        /* Board Styling */
+        .board-wrapper {
+            position: relative;
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(10, 75px);
+            grid-auto-rows: 75px;
+            gap: 5px;
+            background-color: #e5e7eb;
+            padding: 5px;
+            border-radius: 6px;
+        }
+
+        .tile {
+            background-color: white;
+            border-radius: 4px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 6px;
+            box-sizing: border-box;
+            font-size: 11px;
+            font-weight: bold;
+            color: #9ca3af;
+            cursor: pointer;
+            user-select: none;
+            overflow: hidden;
+            transition: transform 0.1s;
+        }
+
+        .tile:hover { transform: scale(1.02); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .tile-num { font-size: 14px; color: var(--dark); z-index: 2; }
+        
+        .tile-activity { 
+            font-weight: normal; 
+            color: #4b5563; 
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+            z-index: 2;
+        }
+
+        /* Tile image background preview tint */
+        .tile-bg-preview {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover;
+            opacity: 0.15;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Portal/Transport badging */
+        .transport-badge {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            color: white;
+            font-size: 9px;
+            z-index: 3;
+        }
+        .badge-ladder { background-color: var(--success); }
+        .badge-snake { background-color: var(--danger); }
+
+        /* Player token */
+        .player-token {
+            width: 24px;
+            height: 24px;
+            background-color: #ff3366;
+            border: 3px solid white;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 10;
+            transition: all 0.4s ease-in-out;
+            pointer-events: none;
+        }
+
+        /* Sidebar Editor */
+        .sidebar {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        /* Game Log Console */
+        .game-console {
+            background: #111827;
+            color: #10b981;
+            font-family: monospace;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            height: 120px;
+            overflow-y: auto;
+        }
+
+        /* CUSTOM MODAL POPUP WINDOW STYLING */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-card {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+            text-align: center;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.open .modal-card {
+            transform: scale(1);
+        }
+        .modal-title {
+            font-size: 24px;
+            color: var(--dark);
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .modal-image {
+            width: 100%;
+            max-height: 240px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background-color: #eee;
+            display: none;
+        }
+        
+        /* Video Container Aspect Ratio Wrapper */
+        .modal-video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background-color: #000;
+            display: none;
+        }
+        .modal-video-container iframe {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            border: 0;
+        }
+
+        .modal-activity-text {
+            font-size: 18px;
+            color: #4b5563;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Customizable Snakes & Ladders</h1>
+    <p class="subtitle">Switch to "Design Mode" to add tile photos, custom activities, and videos!</p>
+
+    <div class="toolbar">
+        <div>
+            <button id="btn-play-mode" class="btn-mode active" onclick="setMode('play')">Play Mode</button>
+            <button id="btn-design-mode" class="btn-mode" onclick="setMode('design')">Design Mode</button>
+        </div>
+        |
+        <button class="btn-action" onclick="adjustBoardSize(1)">+ Add Tile</button>
+        <button class="btn-action" onclick="adjustBoardSize(-1)">- Remove Tile</button>
+        |
+        <button id="btn-dice" class="btn-action" style="background-color: var(--success);" onclick="rollDice()">🎲 Roll Dice</button>
+    </div>
+
+    <div class="main-container">
+        
+        <div class="board-wrapper">
+            <div id="board"></div>
+            <div id="player" class="player-token"></div>
+        </div>
+
+        <div class="sidebar">
+            <h3 id="sidebar-title">Game Info</h3>
+            
+            <div id="design-panel" style="display: none;">
+                <p style="font-size: 13px; color: #666;">Select any tile on the board to edit its attributes below.</p>
+                <div class="form-group">
+                    <label>Selected Tile:</label>
+                    <input type="text" id="edit-tile-id" readonly style="background:#eee;">
+                </div>
+                <div class="form-group">
+                    <label>Tile Activity Text:</label>
+                    <input type="text" id="edit-tile-activity" placeholder="e.g., Listen and repeat the dialog">
+                </div>
+                <div class="form-group">
+                    <label>Photo URL (Optional background tint):</label>
+                    <input type="text" id="edit-tile-image" placeholder="Paste image link (.jpg, .png)">
+                </div>
+                <div class="form-group">
+                    <label>YouTube Link (Optional prompt video):</label>
+                    <input type="text" id="edit-tile-video" placeholder="Paste YouTube link here">
+                </div>
+                <div class="form-group">
+                    <label>Link Type:</label>
+                    <select id="edit-tile-link-type" onchange="toggleLinkInput()">
+                        <option value="none">None</option>
+                        <option value="ladder">🪜 Ladder (Moves Up)</option>
+                        <option value="snake">🐍 Snake (Drops Down)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="link-target-group" style="display:none;">
+                    <label id="link-target-label">Destination Tile:</label>
+                    <input type="number" id="edit-tile-target" min="1">
+                </div>
+                <button class="btn-action" style="width:100%; background: var(--primary);" onclick="saveTileChanges()">Save Tile Data</button>
+            </div>
+
+            <div id="play-panel">
+                <p><strong>Current Status:</strong> Your turn!</p>
+                <div class="game-console" id="console-log">
+                    Welcome! Press "Roll Dice" to start playing.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="activity-modal" class="modal-overlay">
+        <div class="modal-card">
+            <h2 class="modal-title" id="modal-tile-header">Tile 10 Challenge</h2>
+            
+            <div id="modal-video-container" class="modal-video-container">
+                <iframe id="modal-tile-video" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+            </div>
+
+            <img id="modal-tile-img" class="modal-image" src="" alt="Activity Preview">
+            <p class="modal-activity-text" id="modal-tile-text">Perform the action text here!</p>
+            <button class="btn-action" style="background-color: var(--primary); padding: 12px 30px;" onclick="closeModal()">Complete Challenge</button>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME ENGINE STATE ---
+        let totalTiles = 40; 
+        let currentMode = 'play'; 
+        let selectedTileId = null;
+        let playerPosition = 1;
+        let boardData = {};
+
+        function initData() {
+            for(let i = 1; i <= 100; i++) {
+                boardData[i] = {
+                    id: i,
+                    activity: "",
+                    image: "",
+                    video: "",
+                    transport: null 
+                };
+            }
+            
+            // Sample challenge card showing off native YouTube integration
+            boardData[3].activity = "Watch the video prompt and copy the expressions used!";
+            boardData[3].video = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"; 
+            
+            boardData[7].activity = "Sing your favorite song out loud!";
+            boardData[7].image = "https://images.unsplash.com/photo-1516280440614-37939bbacd6a?w=500";
+
+            boardData[5].transport = { type: 'ladder', target: 14 };
+            boardData[18].transport = { type: 'snake', target: 6 };
+        }
+
+        // FIXED VIDEO PARSING METHOD (Switched gateway to youtube-nocookie.com)
+        function getEmbedVideoUrl(url) {
+            if (!url) return "";
+            let videoId = "";
+            
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            
+            if (match && match[2].length === 11) {
+                videoId = match[2];
+                // Uses the enhanced privacy endpoint to bypass local origin security flags
+                return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
+            }
+            return "";
+        }
+
+        // --- RENDER ENGINE ---
+        function renderBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            const columns = 10;
+            const rows = Math.ceil(totalTiles / columns);
+            board.style.gridTemplateColumns = `repeat(${columns}, 75px)`;
+
+            for (let r = rows - 1; r >= 0; r--) {
+                for (let c = 0; c < columns; c++) {
+                    let tileNum;
+                    if (r % 2 === 0) {
+                        tileNum = (r * columns) + (c + 1);
+                    } else {
+                        tileNum = (r * columns) + (columns - c);
+                    }
+
+                    if (tileNum <= totalTiles) {
+                        const data = boardData[tileNum] || { id: tileNum, activity: "", image: "", video: "", transport: null };
+                        
+                        const tile = document.createElement('div');
+                        tile.className = 'tile';
+                        tile.id = `tile-${tileNum}`;
+                        tile.onclick = () => handleTileClick(tileNum);
+
+                        if(data.image) {
+                            const bgImg = document.createElement('img');
+                            bgImg.className = 'tile-bg-preview';
+                            bgImg.src = data.image;
+                            tile.appendChild(bgImg);
+                        }
+
+                        const numSpan = document.createElement('span');
+                        numSpan.className = 'tile-num';
+                        numSpan.innerText = tileNum;
+                        tile.appendChild(numSpan);
+
+                        if(data.activity) {
+                            const actSpan = document.createElement('span');
+                            actSpan.className = 'tile-activity';
+                            actSpan.innerText = data.activity;
+                            tile.appendChild(actSpan);
+                        }
+
+                        if(data.video && !data.activity) {
+                            const actSpan = document.createElement('span');
+                            actSpan.className = 'tile-activity';
+                            actSpan.innerText = "🎬 Video Task";
+                            tile.appendChild(actSpan);
+                        }
+
+                        if(data.transport) {
+                            const badge = document.createElement('span');
+                            badge.className = `transport-badge badge-${data.transport.type}`;
+                            badge.innerText = `${data.transport.type === 'ladder' ? '🪜' : '🐍'} ${data.transport.target}`;
+                            tile.appendChild(badge);
+                        }
+
+                        board.appendChild(tile);
+                    } else {
+                        const filler = document.createElement('div');
+                        filler.style.visibility = 'hidden';
+                        board.appendChild(filler);
+                    }
+                }
+            }
+            updatePlayerVisual();
+        }
+
+        // --- NAVIGATION ENGINE ---
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-play-mode').classList.toggle('active', mode === 'play');
+            document.getElementById('btn-design-mode').classList.toggle('active', mode === 'design');
+            
+            if(mode === 'design') {
+                document.getElementById('sidebar-title').innerText = "📐 Board Designer";
+                document.getElementById('design-panel').style.display = 'block';
+                document.getElementById('play-panel').style.display = 'none';
+                document.getElementById('btn-dice').disabled = true;
+                logToConsole("Switched to Design Mode. Click tiles to inject custom properties.");
+            } else {
+                document.getElementById('sidebar-title').innerText = "🎮 Gameplay Panel";
+                document.getElementById('design-panel').style.display = 'none';
+                document.getElementById('play-panel').style.display = 'block';
+                document.getElementById('btn-dice').disabled = false;
+                logToConsole("Switched to Play Mode. Let's roll!");
+            }
+        }
+
+        function adjustBoardSize(amount) {
+            if(totalTiles + amount < 10) return alert("Your board must have at least 10 tiles!");
+            totalTiles += amount;
+            if(playerPosition > totalTiles) playerPosition = totalTiles;
+            renderBoard();
+        }
+
+        // --- DESIGN PANEL INTERFACES ---
+        function handleTileClick(id) {
+            if (currentMode !== 'design') {
+                if(boardData[id]?.activity || boardData[id]?.image || boardData[id]?.video) {
+                    showModal(id);
+                }
+                return;
+            }
+            
+            selectedTileId = id;
+            document.getElementById('edit-tile-id').value = id;
+            document.getElementById('edit-tile-activity').value = boardData[id]?.activity || "";
+            document.getElementById('edit-tile-image').value = boardData[id]?.image || "";
+            document.getElementById('edit-tile-video').value = boardData[id]?.video || "";
+            
+            if(boardData[id]?.transport) {
+                document.getElementById('edit-tile-link-type').value = boardData[id].transport.type;
+                document.getElementById('edit-tile-target').value = boardData[id].transport.target;
+            } else {
+                document.getElementById('edit-tile-link-type').value = 'none';
+                document.getElementById('edit-tile-target').value = '';
+            }
+            toggleLinkInput();
+        }
+
+        function toggleLinkInput() {
+            const type = document.getElementById('edit-tile-link-type').value;
+            const container = document.getElementById('link-target-group');
+            container.style.display = (type === 'none') ? 'none' : 'block';
+        }
+
+        function saveTileChanges() {
+            if(!selectedTileId) return alert("Please select a tile on the board first!");
+            
+            boardData[selectedTileId].activity = document.getElementById('edit-tile-activity').value;
+            boardData[selectedTileId].image = document.getElementById('edit-tile-image').value;
+            boardData[selectedTileId].video = document.getElementById('edit-tile-video').value;
+
+            const linkType = document.getElementById('edit-tile-link-type').value;
+            const targetVal = parseInt(document.getElementById('edit-tile-target').value);
+
+            if(linkType !== 'none') {
+                if(!targetVal || targetVal < 1 || targetVal > totalTiles || targetVal === selectedTileId) {
+                    alert("Invalid target placement boundaries.");
+                    return;
+                }
+                boardData[selectedTileId].transport = { type: linkType, target: targetVal };
+            } else {
+                boardData[selectedTileId].transport = null;
+            }
+
+            renderBoard();
+            logToConsole(`Saved modifications for Tile ${selectedTileId}!`);
+        }
+
+        function showModal(tileId) {
+            const data = boardData[tileId];
+            document.getElementById('modal-tile-header').innerText = `🎯 Tile ${tileId} Challenge`;
+            document.getElementById('modal-tile-text').innerText = data.activity || "Task square! Follow instructions.";
+            
+            const videoContainer = document.getElementById('modal-video-container');
+            const iframeElement = document.getElementById('modal-tile-video');
+            const embedUrl = getEmbedVideoUrl(data.video);
+
+            if(embedUrl) {
+                iframeElement.src = embedUrl;
+                videoContainer.style.display = 'block';
+            } else {
+                iframeElement.src = "";
+                videoContainer.style.display = 'none';
+            }
+
+            const imgElement = document.getElementById('modal-tile-img');
+            if(data.image) {
+                imgElement.src = data.image;
+                imgElement.style.display = 'block';
+            } else {
+                imgElement.style.display = 'none';
+            }
+
+            document.getElementById('activity-modal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-tile-video').src = "";
+            document.getElementById('activity-modal').classList.remove('open');
+        }
+
+        // --- GAME MECHANICS ENGINE ---
+        function rollDice() {
+            if(currentMode !== 'play') return;
+            
+            const dieResult = Math.floor(Math.random() * 6) + 1;
+            logToConsole(`🎲 Rolled a: ${dieResult}`);
+            
+            let targetPosition = playerPosition + dieResult;
+            if (targetPosition > totalTiles) return logToConsole(`Bounced back!`);
+
+            playerPosition = targetPosition;
+            updatePlayerVisual();
+
+            setTimeout(() => {
+                const currentTileData = boardData[playerPosition];
+                
+                if(currentTileData) {
+                    if(currentTileData.activity || currentTileData.image || currentTileData.video) {
+                        showModal(playerPosition);
+                    }
+
+                    if(currentTileData.transport) {
+                        const link = currentTileData.transport;
+                        logToConsole(`⚡ ${link.type.toUpperCase()}! Warp from ${playerPosition} to ${link.target}`);
+                        playerPosition = link.target;
+                        setTimeout(updatePlayerVisual, 500);
+                    }
+                }
+
+                if(playerPosition === totalTiles) {
+                    alert("🥳 Congratulations! You reached the final tile!");
+                    playerPosition = 1;
+                    updatePlayerVisual();
+                }
+            }, 600);
+        }
+
+        function updatePlayerVisual() {
+            const currentTileDOM = document.getElementById(`tile-${playerPosition}`);
+            const playerDOM = document.getElementById('player');
+            if(currentTileDOM && playerDOM) {
+                const rect = currentTileDOM.getBoundingClientRect();
+                const wrapperRect = document.getElementById('board').getBoundingClientRect();
+                playerDOM.style.top = `${rect.top - wrapperRect.top + rect.height/2}px`;
+                playerDOM.style.left = `${rect.left - wrapperRect.left + rect.width/2}px`;
+            }
+        }
+
+        function logToConsole(message) {
+            const consoleBox = document.getElementById('console-log');
+            consoleBox.innerHTML += `<br>> ${message}`;
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+
+        initData();
+        renderBoard();
+        window.addEventListener('resize', updatePlayerVisual);
+    </script>
+</body>
+</html>
