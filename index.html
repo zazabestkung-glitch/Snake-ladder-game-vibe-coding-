@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connected Snakes & Ladders Engine v13</title>
+    <title>Connected Snakes & Ladders Engine v14</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -72,6 +72,11 @@
             transition: all 0.2s;
         }
 
+        button:disabled {
+            opacity: 0.5 !important;
+            cursor: not-allowed !important;
+        }
+
         .btn-mode { background-color: #e5e7eb; color: var(--dark); }
         .btn-mode.active { background-color: var(--primary); color: white; }
         .btn-action { background-color: var(--dark); color: white; }
@@ -126,7 +131,7 @@
             padding: 10px 14px;
             font-size: 14px;
         }
-        .btn-num:hover {
+        .btn-num:hover:not(:disabled) {
             background-color: var(--primary);
             color: white;
             border-color: var(--primary);
@@ -527,12 +532,12 @@
             <div id="remote-concrete-ui-pane" style="display: none;">
                 <p style="margin-top: 0; font-weight: bold; font-size: 14px; color: var(--dark);">Tap Concrete Roll Value:</p>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; justify-content: center;">
-                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(1)">1</button>
-                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(2)">2</button>
-                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(3)">3</button>
-                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(4)">4</button>
-                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(5)">5</button>
-                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(6)">6</button>
+                    <button class="remote-num-btn btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(1)">1</button>
+                    <button class="remote-num-btn btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(2)">2</button>
+                    <button class="remote-num-btn btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(3)">3</button>
+                    <button class="remote-num-btn btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(4)">4</button>
+                    <button class="remote-num-btn btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(5)">5</button>
+                    <button class="remote-num-btn btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(6)">6</button>
                 </div>
             </div>
         </div>
@@ -566,6 +571,9 @@
         const playerColors = ['p-red', 'p-blue', 'p-green', 'p-yellow', 'p-orange', 'p-purple', 'p-pink', 'p-teal'];
         const playerNames = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8'];
         let boardData = {};
+
+        // Animation Concurrency Race Condition Lock
+        let isAnimating = false;
 
         // Bi-Directional High Stability PeerJS Network Configurations
         let peerInstance = null;
@@ -664,6 +672,9 @@
 
             p2pConnection.on('data', (payload) => {
                 if (currentNetworkRole === 'host') {
+                    // Ignore incoming remote commands entirely if the board engine is mid-animation loop
+                    if (isAnimating) return;
+
                     if(payload.cmd === 'ROLL_DICE_DIGITAL') {
                         setDiceMode('digital');
                         processDiceMovement(null);
@@ -691,7 +702,15 @@
                             digiPane.style.display = 'none';
                             concretePane.style.display = 'block';
                         }
-                        document.getElementById('remote-log-display').innerText = `Synced! Game Dice Mode: [${payload.dMode.toUpperCase()}]`;
+
+                        // Sync remote button disabling properties matching host engine states
+                        document.getElementById('remote-roll-action').disabled = payload.animatingState;
+                        const rNums = document.getElementsByClassName('remote-num-btn');
+                        Array.from(rNums).forEach(btn => btn.disabled = payload.animatingState);
+
+                        document.getElementById('remote-log-display').innerText = payload.animatingState 
+                            ? "⏳ Board tokens traveling... Input locked." 
+                            : `Synced! Game Dice Mode: [${payload.dMode.toUpperCase()}]`;
                     }
                 }
             });
@@ -707,18 +726,33 @@
             p2pConnection.send({ cmd: 'ROLL_DICE_CONCRETE', val: numValue });
         }
 
+        function setDiceControlsLock(isLocked) {
+            const digiBtn = document.getElementById('btn-digital-roll');
+            const concreteKeypad = document.getElementById('concrete-keypad');
+            
+            if (digiBtn) digiBtn.disabled = isLocked;
+            if (concreteKeypad) {
+                const buttons = concreteKeypad.getElementsByTagName('button');
+                Array.from(buttons).forEach(btn => btn.disabled = isLocked);
+            }
+        }
+
         function broadcastStateToRemote() {
             if(currentNetworkRole === 'host' && p2pConnection) {
                 p2pConnection.send({
                     cmd: 'SYNC_STATE',
                     color: playerColors[activePlayerIndex],
                     text: `${playerNames[activePlayerIndex]}'s Turn`,
-                    dMode: diceMode
+                    dMode: diceMode,
+                    animatingState: isAnimating
                 });
             }
         }
 
         function triggerGlobalReset() {
+            isAnimating = false;
+            setDiceControlsLock(false);
+
             playerPositions = [];
             for (let i = 0; i < playerCount; i++) {
                 playerPositions.push(1);
@@ -747,7 +781,7 @@
         }
 
         function adjustPlayerCount(amount) {
-            if (currentMode !== 'play') return;
+            if (currentMode !== 'play' || isAnimating) return;
             let newCount = playerCount + amount;
             if (newCount < 1 || newCount > 8) return; 
             
@@ -765,7 +799,7 @@
             updateAllPawnsVisual(); 
             drawTransportPaths();
             
-            updateStatusText(`Game altered to ${playerCount} players. Tokens sent back to start.`);
+            updateStatusText("Game configured. Tokens sent back to start.");
         }
 
         function buildPlayerPawns() {
@@ -790,6 +824,8 @@
         }
 
         function advanceTurn() {
+            isAnimating = false;
+            setDiceControlsLock(false);
             activePlayerIndex = (activePlayerIndex + 1) % playerCount;
             updateTurnVisual();
         }
@@ -945,6 +981,7 @@
         }
 
         function setDiceMode(mode) {
+            if (isAnimating) return;
             diceMode = mode;
             
             const dBtn = document.getElementById('toggle-digi');
@@ -968,6 +1005,7 @@
         }
 
         function setMode(mode) {
+            if (isAnimating) return;
             currentMode = mode;
             document.getElementById('btn-play-mode').classList.toggle('active', mode === 'play');
             document.getElementById('btn-design-mode').classList.toggle('active', mode === 'design');
@@ -992,6 +1030,7 @@
         }
 
         function adjustBoardSize(amount) {
+            if(isAnimating) return;
             if(totalTiles + amount < 10) return alert("Your board must have at least 10 tiles!");
             totalTiles += amount;
             for(let i=0; i<playerPositions.length; i++) {
@@ -1002,6 +1041,7 @@
 
         function handleTileClick(id) {
             if (currentMode !== 'design') {
+                if (isAnimating) return; // Prevent card inspection mid-turn move
                 if(boardData[id]?.activity || boardData[id]?.image || boardData[id]?.video) {
                     showModal(id);
                 }
@@ -1036,20 +1076,17 @@
             const linkType = document.getElementById('edit-tile-link-type').value;
             const targetVal = parseInt(document.getElementById('edit-tile-target').value);
 
-            /* HIGH ACCURACY LINK TYPE NUMBER VALIDATION ROUTINE */
             if(linkType !== 'none') {
                 if(!targetVal || targetVal < 1 || targetVal > totalTiles || targetVal === selectedTileId) {
                     alert("Invalid target placement boundaries.");
                     return;
                 }
                 
-                // Rule 1: Ladders must only climb to HIGHER tile numbers
                 if(linkType === 'ladder' && targetVal <= selectedTileId) {
                     alert(`🪜 Validation Error: Ladders must climb up! Destination tile (${targetVal}) must be higher than current Tile ${selectedTileId}.`);
                     return;
                 }
                 
-                // Rule 2: Snakes must only drop down to LOWER tile numbers
                 if(linkType === 'snake' && targetVal >= selectedTileId) {
                     alert(`🐍 Validation Error: Snakes must drop down! Destination tile (${targetVal}) must be lower than current Tile ${selectedTileId}.`);
                     return;
@@ -1069,10 +1106,9 @@
             updateStatusText(`Saved modifications for Tile ${selectedTileId}!`);
         }
 
-        /* EXPORT MAP CONFIGURATION AS JSON FILE */
         function exportMapFile() {
             const outputPackage = {
-                version: "v13-engine",
+                version: "v14-engine",
                 totalTiles: totalTiles,
                 boardData: boardData
             };
@@ -1084,7 +1120,6 @@
             dlAnchorElem.click();
         }
 
-        /* IMPORT MAP CONFIGURATION FROM JSON FILE */
         function importMapFile(inputElement) {
             const file = inputElement.files[0];
             if (!file) return;
@@ -1099,6 +1134,8 @@
                         
                         playerPositions = Array(playerCount).fill(1);
                         activePlayerIndex = 0;
+                        isAnimating = false;
+                        setDiceControlsLock(false);
 
                         renderBoard();
                         buildPlayerPawns();
@@ -1155,8 +1192,14 @@
         }
 
         function processDiceMovement(manualValue) {
-            if(currentMode !== 'play') return;
+            // Drop calls instantly if not in play mode or if an animation lock is active
+            if(currentMode !== 'play' || isAnimating) return;
             
+            // Set animation lock immediately
+            isAnimating = true;
+            setDiceControlsLock(true);
+            broadcastStateToRemote();
+
             let dieResult = (manualValue === null) ? Math.floor(Math.random() * 6) + 1 : manualValue;
             let activePlayerName = playerNames[activePlayerIndex];
             
@@ -1166,13 +1209,16 @@
             
             if (targetPosition > totalTiles) {
                 updateStatusText(`${activePlayerName} bounced back! Requires exact count.`);
-                advanceTurn();
+                setTimeout(() => {
+                    advanceTurn();
+                }, 1000);
                 return;
             }
 
             playerPositions[activePlayerIndex] = targetPosition;
             updateAllPawnsVisual();
 
+            // Wait exactly 600ms for the CSS pawn transition timeline to complete safely
             setTimeout(() => {
                 const currentTileData = boardData[playerPositions[activePlayerIndex]];
                 let requiresModal = false;
