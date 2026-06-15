@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connected Snakes & Ladders Engine v11</title>
+    <title>Connected Snakes & Ladders Engine v12</title>
+    <!-- Include PeerJS Library for secure, real-time multi-device synchronization -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -314,6 +315,12 @@
             cursor: pointer;
         }
 
+        .io-box {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px dashed #e5e7eb;
+        }
+
         /* POPUP MODAL COMPONENT */
         .modal-overlay {
             position: fixed;
@@ -384,6 +391,7 @@
     <h1 id="main-heading-title">Customizable Snakes & Ladders</h1>
     <p id="main-sub-title" class="subtitle">Design maps with dual-device remote tracking!</p>
 
+    <!-- Unified Connection Infrastructure Ribbon Bar -->
     <div class="sync-banner" id="network-sync-ribbon">
         <div id="sync-status-indicator">🌐 Network Mode: </div>
         <div class="toggle-group">
@@ -397,7 +405,9 @@
         </div>
     </div>
 
+    <!-- Main Workspace Container Interface Grid -->
     <div id="primary-app-workspace" style="display: contents;">
+        <!-- Toolbar -->
         <div class="toolbar">
             <div>
                 <button id="btn-play-mode" class="btn-mode active" onclick="setMode('play')">Play Mode</button>
@@ -435,9 +445,11 @@
                 </div>
             </div>
             |
+            <!-- Global Structural Reset Action Button -->
             <button id="btn-global-reset" class="btn-danger" onclick="triggerGlobalReset()">🔄 Reset Game</button>
         </div>
 
+        <!-- Main Section Grid layout structures -->
         <div class="main-container">
             <div class="board-wrapper">
                 <div style="position: relative;">
@@ -447,6 +459,7 @@
                 <div id="pawn-container"></div>
             </div>
 
+            <!-- Dynamic Control Sidebar -->
             <div class="sidebar">
                 <h3 id="sidebar-title">Game Info</h3>
                 
@@ -487,6 +500,15 @@
                         <input type="number" id="edit-tile-target" min="1">
                     </div>
                     <button class="btn-action" style="width:100%; background: var(--primary);" onclick="saveTileChanges()">Save Tile Data</button>
+
+                    <!-- Save & Load File Architecture Block -->
+                    <div class="io-box">
+                        <h4 style="margin: 0 0 10px 0; color: var(--dark);">Storage Controls</h4>
+                        <button class="btn-action" style="width:100%; background: #059669; margin-bottom: 10px;" onclick="exportMapFile()">💾 Export Map File</button>
+                        
+                        <label style="display:block; font-size:12px; font-weight:600; color:#4b5563; margin-bottom:4px;">📂 Import Map File:</label>
+                        <input type="file" id="file-import-input" accept=".json" onchange="importMapFile(this)" style="font-size: 12px; padding: 4px;">
+                    </div>
                 </div>
 
                 <div id="play-panel">
@@ -499,17 +521,21 @@
         </div>
     </div>
 
+    <!-- Standalone Dedicated Handheld Mobile Remote View Deck -->
     <div id="mobile-controller-deck" class="controller-only-view">
         <h2 style="color: var(--dark); margin-top: 0;">Device Remote Deck</h2>
         <p style="color: #666; font-size: 14px; margin-bottom: 25px;">Paired to Screen Board. Controls instantly sync live.</p>
         
         <div id="remote-turn-card-display" class="turn-card p-red" style="margin-bottom: 20px; padding: 15px;">Active Player Turn</div>
         
+        <!-- Adaptive Remote Input Interface Panel Container -->
         <div class="remote-ctrl-box">
+            <!-- Digital Panel View Inside Remote Deck -->
             <div id="remote-digital-ui-pane">
                 <button id="remote-roll-action" class="btn-action" style="background-color: var(--success); width: 100%; padding: 18px; font-size: 18px;" onclick="emitRemoteEvent('ROLL_DICE_DIGITAL')">🎲 Remote Roll Dice</button>
             </div>
             
+            <!-- Concrete Panel View Inside Remote Deck -->
             <div id="remote-concrete-ui-pane" style="display: none;">
                 <p style="margin-top: 0; font-weight: bold; font-size: 14px; color: var(--dark);">Tap Concrete Roll Value:</p>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; justify-content: center;">
@@ -527,6 +553,7 @@
         <p id="remote-log-display" style="margin-top:25px; font-weight:500; font-size:13px; color:var(--success);">Status: Standing by...</p>
     </div>
 
+    <!-- CUSTOM POPUP MODAL COMPONENT -->
     <div id="activity-modal" class="modal-overlay">
         <div class="modal-card">
             <h2 class="modal-title" id="modal-tile-header">Tile Challenge</h2>
@@ -711,7 +738,7 @@
             }
             activePlayerIndex = 0;
             
-            buildPlayerPawns(); // Dynamically re-renders the DOM token layout structures
+            buildPlayerPawns(); 
             updateTurnVisual();
             updateAllPawnsVisual();
             drawTransportPaths();
@@ -740,16 +767,15 @@
             playerCount = newCount;
             document.getElementById('lbl-player-count').innerText = playerCount;
             
-            // Reinitialize positions array matching updated total counts 
             playerPositions = [];
             for (let i = 0; i < playerCount; i++) {
                 playerPositions.push(1);
             }
             activePlayerIndex = 0;
             
-            buildPlayerPawns();   // FIXED: Re-generates token visual elements on the fly
-            updateTurnVisual();   // Updates color codes mapping indexes
-            updateAllPawnsVisual(); // Repositions visual layouts clean on Tile 1
+            buildPlayerPawns();   
+            updateTurnVisual();   
+            updateAllPawnsVisual(); 
             drawTransportPaths();
             
             updateStatusText(`Game altered to ${playerCount} players. Tokens sent back to start.`);
@@ -1040,6 +1066,54 @@
 
             renderBoard();
             updateStatusText(`Saved modifications for Tile ${selectedTileId}!`);
+        }
+
+        /* EXPORT MAP CONFIGURATION AS JSON FILE */
+        function exportMapFile() {
+            const outputPackage = {
+                version: "v12-engine",
+                totalTiles: totalTiles,
+                boardData: boardData
+            };
+            
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(outputPackage));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `snakes_ladders_map_${totalTiles}_tiles.json`);
+            dlAnchorElem.click();
+        }
+
+        /* IMPORT MAP CONFIGURATION FROM JSON FILE */
+        function importMapFile(inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsedData = JSON.parse(e.target.result);
+                    if (parsedData.totalTiles && parsedData.boardData) {
+                        totalTiles = parsedData.totalTiles;
+                        boardData = parsedData.boardData;
+                        
+                        // Reset layout configs cleanly
+                        playerPositions = Array(playerCount).fill(1);
+                        activePlayerIndex = 0;
+
+                        renderBoard();
+                        buildPlayerPawns();
+                        updateTurnVisual();
+                        
+                        alert("🎯 Map configurations imported and drawn successfully!");
+                        document.getElementById('file-import-input').value = ""; // Clear file selector
+                    } else {
+                        alert("Malformed configuration scheme. Could not load accurately.");
+                    }
+                } catch (err) {
+                    alert("Error parsing document. Verify it is a valid JSON map file.");
+                }
+            };
+            reader.readAsText(file);
         }
 
         function showModal(tileId) {
