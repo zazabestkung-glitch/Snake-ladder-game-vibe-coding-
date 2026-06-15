@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connected Snakes & Ladders Engine v9</title>
+    <title>Connected Snakes & Ladders Engine v10</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -368,6 +368,15 @@
             width: 90%;
             margin-top: 40px;
         }
+        .remote-ctrl-box {
+            background: #f9fafb;
+            border: 1px dashed #d1d5db;
+            border-radius: 10px;
+            padding: 20px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -382,9 +391,9 @@
             <button id="net-btn-remote" onclick="switchNetworkRole('remote')">📱 Phone Controller Mode</button>
         </div>
         <div id="room-code-group">
-            <span>Your Game ID Code:</span>
+            <span>Room ID Code:</span>
             <input type="text" id="sync-room-input" readonly size="8">
-            <button id="btn-connect-room" class="btn-action" style="display:none; padding:5px 12px;" onclick="connectToHostBoard()">Connect</button>
+            <button id="btn-connect-room" class="btn-action" style="display:none; padding:5px 12px;" onclick="connectToHostBoard()">Connect Remote</button>
         </div>
     </div>
 
@@ -492,14 +501,29 @@
 
     <div id="mobile-controller-deck" class="controller-only-view">
         <h2 style="color: var(--dark); margin-top: 0;">Device Remote Deck</h2>
-        <p style="color: #666; font-size: 14px; margin-bottom: 25px;">Connected to Host View Screen. Use buttons below to trigger moves synchronously.</p>
+        <p style="color: #666; font-size: 14px; margin-bottom: 25px;">Paired to Screen Board. Controls instantly sync live.</p>
         
-        <div id="remote-turn-card-display" class="turn-card p-red" style="margin-bottom: 25px; padding: 20px;">Active Player Turn</div>
+        <div id="remote-turn-card-display" class="turn-card p-red" style="margin-bottom: 20px; padding: 15px;">Active Player Turn</div>
         
-        <div style="display: flex; flex-direction: column; gap: 15px; align-items: center; justify-content: center;">
-            <button id="remote-roll-action" class="btn-action" style="background-color: var(--success); width: 85%; padding: 20px; font-size: 20px;" onclick="emitRemoteEvent('ROLL_DICE')">🎲 Remote Roll Dice</button>
-            <button id="remote-reset-action" class="btn-danger" style="width: 85%; padding: 15px; font-size: 16px;" onclick="emitRemoteEvent('RESET_GAME')">🔄 Reset Board Game</button>
+        <div class="remote-ctrl-box">
+            <div id="remote-digital-ui-pane">
+                <button id="remote-roll-action" class="btn-action" style="background-color: var(--success); width: 100%; padding: 18px; font-size: 18px;" onclick="emitRemoteEvent('ROLL_DICE_DIGITAL')">🎲 Remote Roll Dice</button>
+            </div>
+            
+            <div id="remote-concrete-ui-pane" style="display: none;">
+                <p style="margin-top: 0; font-weight: bold; font-size: 14px; color: var(--dark);">Tap Concrete Roll Value:</p>
+                <div style="display: grid; grid-template-columns: repeat(3, 15px); gap: 10px; justify-content: center; grid-auto-columns: 65px;">
+                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(1)">1</button>
+                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(2)">2</button>
+                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(3)">3</button>
+                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(4)">4</button>
+                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(5)">5</button>
+                    <button class="btn-num" style="padding:15px; font-size:18px;" onclick="emitRemoteConcreteRoll(6)">6</button>
+                </div>
+            </div>
         </div>
+
+        <button id="remote-reset-action" class="btn-danger" style="width: 100%; padding: 12px; font-size: 15px;" onclick="emitRemoteEvent('RESET_GAME')">🔄 Reset Board Game</button>
         <p id="remote-log-display" style="margin-top:25px; font-weight:500; font-size:13px; color:var(--success);">Status: Standing by...</p>
     </div>
 
@@ -529,7 +553,7 @@
         const playerNames = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8'];
         let boardData = {};
 
-        // PeerJS Infrastructure variables configuration mapping
+        // Bi-Directional High Stability PeerJS Network Configurations
         let peerInstance = null;
         let p2pConnection = null;
         let currentNetworkRole = 'host'; 
@@ -549,23 +573,32 @@
             boardData[32].transport = { type: 'snake', target: 15 };
         }
 
-        // INITIALIZE PEER NETWORK PROTOCOLS
+        // STABLE SEPARATED IDENTITY NETWORK ENGINE ENGINE
         function setupPeerNetworkEngine() {
+            if (currentNetworkRole !== 'host') return;
+
             // Generates completely random unique 5-digit Room Key ID tags
             const generatedRoomCode = Math.floor(10000 + Math.random() * 90000).toString();
             
-            peerInstance = new Peer(`snlroom-${generatedRoomCode}`);
+            // Host creates a dedicated explicitly listening workspace ID
+            peerInstance = new Peer(`snlboard-room-${generatedRoomCode}`);
             
             peerInstance.on('open', (id) => {
                 document.getElementById('sync-room-input').value = generatedRoomCode;
-                document.getElementById('sync-status-indicator').innerText = "🌐 System Active (Host Mode)";
+                document.getElementById('sync-status-indicator').innerText = "🌐 System Active (Host View Screen)";
             });
 
             // Handling receiving incoming data pipeline triggers
             peerInstance.on('connection', (conn) => {
+                // Keep the existing connection alive, don't allow double binds to wipe instance
                 p2pConnection = conn;
-                document.getElementById('sync-status-indicator').innerText = "🟢 Controller Connected Successfully!";
+                document.getElementById('sync-status-indicator').innerText = "🟢 Controller Paired & Synced!";
                 setupDataPipelineListeners();
+                
+                // Immediately synchronize the current turn state and dice configuration parameters right away!
+                setTimeout(() => {
+                    broadcastStateToRemote();
+                }, 800);
             });
         }
 
@@ -586,60 +619,99 @@
                 
                 roomInput.value = "";
                 roomInput.readOnly = false;
-                roomInput.placeholder = "Enter ID";
+                roomInput.placeholder = "Enter Room Code";
                 connectBtn.style.display = 'inline-block';
-                document.getElementById('sync-status-indicator').innerText = "📱 Device Status: Unlinked Remote";
+                document.getElementById('sync-status-indicator').innerText = "📱 Mode: Controller Setup";
                 
-                if(peerInstance) peerInstance.destroy();
+                if(peerInstance) {
+                    peerInstance.destroy();
+                    peerInstance = null;
+                }
             } else {
-                location.reload(); // Quick reset cleanly handles reverting back structural components safely
+                // Instantly re-initiates default configurations safely 
+                location.reload(); 
             }
         }
 
         function connectToHostBoard() {
             const code = document.getElementById('sync-room-input').value.trim();
-            if(!code) return alert("Please fill standard input code values.");
+            if(!code) return alert("Please type your 5-digit Room Code first.");
 
+            // Create a completely distinct unique controller client peer node 
             peerInstance = new Peer();
             peerInstance.on('open', () => {
-                p2pConnection = peerInstance.connect(`snlroom-${code}`);
+                p2pConnection = peerInstance.connect(`snlboard-room-${code}`);
+                
                 p2pConnection.on('open', () => {
-                    document.getElementById('sync-status-indicator').innerText = "🟢 Linked with Room View Screens!";
-                    document.getElementById('remote-log-display').innerText = "Status: Fully synced connection established.";
+                    document.getElementById('sync-status-indicator').innerText = "🟢 Controller Paired with Main Screen!";
+                    document.getElementById('remote-log-display').innerText = "Linked cleanly. Standing by for gameplay synchronization signals...";
                     setupDataPipelineListeners();
+                });
+
+                p2pConnection.on('close', () => {
+                    document.getElementById('remote-log-display').innerText = "⚠️ Link terminated. Attempting reconnect structural parameters...";
                 });
             });
         }
 
         function setupDataPipelineListeners() {
+            if (!p2pConnection) return;
+
             p2pConnection.on('data', (payload) => {
                 if (currentNetworkRole === 'host') {
-                    // Host execution handling logic parsing
-                    if(payload.cmd === 'ROLL_DICE') processDiceMovement(null);
-                    if(payload.cmd === 'RESET_GAME') triggerGlobalReset();
+                    // Host executing structural remote control instructions safely
+                    if(payload.cmd === 'ROLL_DICE_DIGITAL') {
+                        setDiceMode('digital');
+                        processDiceMovement(null);
+                    }
+                    if(payload.cmd === 'ROLL_DICE_CONCRETE') {
+                        setDiceMode('concrete');
+                        processDiceMovement(payload.val);
+                    }
+                    if(payload.cmd === 'RESET_GAME') {
+                        triggerGlobalReset();
+                    }
                 } else if (currentNetworkRole === 'remote') {
-                    // Remote syncing logic processing
+                    // Remote synchronizes UI changes sent from the main board
                     if(payload.cmd === 'SYNC_STATE') {
                         const rCard = document.getElementById('remote-turn-card-display');
                         rCard.className = `turn-card ${payload.color}`;
                         rCard.innerText = payload.text;
+
+                        // Dynamic structural swapping inside the smartphone control view deck layout
+                        const digiPane = document.getElementById('remote-digital-ui-pane');
+                        const concretePane = document.getElementById('remote-concrete-ui-pane');
+
+                        if (payload.dMode === 'digital') {
+                            digiPane.style.display = 'block';
+                            concretePane.style.display = 'none';
+                        } else {
+                            digiPane.style.display = 'none';
+                            concretePane.style.display = 'block';
+                        }
+                        document.getElementById('remote-log-display').innerText = `Synced! Game Dice Mode is set to [${payload.dMode.toUpperCase()}]`;
                     }
                 }
             });
         }
 
         function emitRemoteEvent(commandString) {
-            if(!p2pConnection) return alert("No paired active terminal views tracked yet.");
+            if(!p2pConnection) return alert("Remote client is not paired to a Board view yet.");
             p2pConnection.send({ cmd: commandString });
+        }
+
+        function emitRemoteConcreteRoll(numValue) {
+            if(!p2pConnection) return alert("Remote client is not paired to a Board view yet.");
+            p2pConnection.send({ cmd: 'ROLL_DICE_CONCRETE', val: numValue });
         }
 
         function broadcastStateToRemote() {
             if(currentNetworkRole === 'host' && p2pConnection) {
-                const card = document.getElementById('turn-display-card');
                 p2pConnection.send({
                     cmd: 'SYNC_STATE',
                     color: playerColors[activePlayerIndex],
-                    text: `${playerNames[activePlayerIndex]}'s Turn`
+                    text: `${playerNames[activePlayerIndex]}'s Turn`,
+                    dMode: diceMode
                 });
             }
         }
@@ -652,14 +724,13 @@
             }
             activePlayerIndex = 0;
             
-            // Re-render interface systems safely
             updateTurnVisual();
             updateAllPawnsVisual();
             drawTransportPaths();
             updateStatusText("🔄 Board has been fully reset! All tokens returned to square 1.");
             
             if(currentNetworkRole === 'remote') {
-                document.getElementById('remote-log-display').innerText = "Status: Sent global dashboard wipe sequence command.";
+                document.getElementById('remote-log-display').innerText = "Wiped and reset game status successfully.";
             }
         }
 
@@ -700,8 +771,10 @@
 
         function updateTurnVisual() {
             const card = document.getElementById('turn-display-card');
-            card.className = `turn-card ${playerColors[activePlayerIndex]}`;
-            card.innerText = `${playerNames[activePlayerIndex]}'s Turn`;
+            if(card) {
+                card.className = `turn-card ${playerColors[activePlayerIndex]}`;
+                card.innerText = `${playerNames[activePlayerIndex]}'s Turn`;
+            }
             broadcastStateToRemote();
         }
 
@@ -712,6 +785,7 @@
 
         function renderBoard() {
             const board = document.getElementById('board');
+            if(!board) return;
             board.innerHTML = '';
             
             const columns = 10;
@@ -802,14 +876,14 @@
             ctx.lineTo(shortEndX, shortEndY);
 
             if (styleType === 'ladder') {
-                ctx.strokeStyle = 'rgba(139, 94, 60, 0.85)'; // Brown Ladder Path
+                ctx.strokeStyle = 'rgba(139, 94, 60, 0.85)'; 
                 ctx.lineWidth = 6;
                 ctx.setLineDash([6, 6]); 
                 ctx.stroke();
                 ctx.setLineDash([]); 
                 ctx.fillStyle = '#8b5e3c';
             } else {
-                ctx.strokeStyle = 'rgba(22, 163, 74, 0.85)'; // Green Snake Path
+                ctx.strokeStyle = 'rgba(22, 163, 74, 0.85)'; 
                 ctx.lineWidth = 6;
                 ctx.stroke();
                 ctx.fillStyle = '#16a34a';
@@ -861,19 +935,25 @@
 
         function setDiceMode(mode) {
             diceMode = mode;
-            document.getElementById('toggle-digi').classList.toggle('active', mode === 'digital');
-            document.getElementById('toggle-concrete').classList.toggle('active', mode === 'concrete');
+            
+            const dBtn = document.getElementById('toggle-digi');
+            const cBtn = document.getElementById('toggle-concrete');
+            if(dBtn) dBtn.classList.toggle('active', mode === 'digital');
+            if(cBtn) cBtn.classList.toggle('active', mode === 'concrete');
 
             const digiBtn = document.getElementById('btn-digital-roll');
             const concreteKeypad = document.getElementById('concrete-keypad');
 
-            if (mode === 'digital') {
-                digiBtn.style.display = 'block';
-                concreteKeypad.style.display = 'none';
-            } else {
-                digiBtn.style.display = 'none';
-                concreteKeypad.style.display = 'flex';
+            if(digiBtn && concreteKeypad) {
+                if (mode === 'digital') {
+                    digiBtn.style.display = 'block';
+                    concreteKeypad.style.display = 'none';
+                } else {
+                    digiBtn.style.display = 'none';
+                    concreteKeypad.style.display = 'flex';
+                }
             }
+            broadcastStateToRemote();
         }
 
         function setMode(mode) {
@@ -888,14 +968,14 @@
                 document.getElementById('sidebar-title').innerText = "📐 Board Designer";
                 document.getElementById('design-panel').style.display = 'block';
                 document.getElementById('play-panel').style.display = 'none';
-                digiBtn.disabled = true;
-                Array.from(concreteKeypad.getElementsByTagName('button')).forEach(b => b.disabled = true);
+                if(digiBtn) digiBtn.disabled = true;
+                if(concreteKeypad) Array.from(concreteKeypad.getElementsByTagName('button')).forEach(b => b.disabled = true);
             } else {
                 document.getElementById('sidebar-title').innerText = "🎮 Gameplay Panel";
                 document.getElementById('design-panel').style.display = 'none';
                 document.getElementById('play-panel').style.display = 'block';
-                digiBtn.disabled = false;
-                Array.from(concreteKeypad.getElementsByTagName('button')).forEach(b => b.disabled = false);
+                if(digiBtn) digiBtn.disabled = false;
+                if(concreteKeypad) Array.from(concreteKeypad.getElementsByTagName('button')).forEach(b => b.disabled = false);
             }
             renderBoard(); 
         }
@@ -1005,7 +1085,7 @@
         function processDiceMovement(manualValue) {
             if(currentMode !== 'play') return;
             
-            let dieResult = (diceMode === 'digital') ? Math.floor(Math.random() * 6) + 1 : manualValue;
+            let dieResult = (manualValue === null) ? Math.floor(Math.random() * 6) + 1 : manualValue;
             let activePlayerName = playerNames[activePlayerIndex];
             
             updateStatusText(`${activePlayerName} rolled a **${dieResult}**.`);
@@ -1052,7 +1132,9 @@
         }
 
         function updateAllPawnsVisual() {
-            const boardWrapper = document.getElementById('board').getBoundingClientRect();
+            const boardDOM = document.getElementById('board');
+            if (!boardDOM) return;
+            const boardWrapper = boardDOM.getBoundingClientRect();
             
             for (let i = 0; i < playerCount; i++) {
                 const currentPos = playerPositions[i];
