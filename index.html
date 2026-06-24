@@ -592,12 +592,14 @@
             box-shadow: 0 0 6px rgba(0,240,255,0.4);
             vertical-align: middle;
         }
+        
         .status-badge-strip {
             display: inline-flex;
             gap: 6px;
             vertical-align: middle;
             margin-left: 8px;
         }
+
         .designer-mystery-badge {
             position: absolute;
             top: 6px;
@@ -616,9 +618,40 @@
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             object-fit: cover;
-            opacity: 0.75;
+            opacity: 0.65; /* Boosted opacity for clearer tile visibility */
             z-index: 1;
             pointer-events: none;
+        }
+
+        /* DESIGN MODE PREVIEW BOX INSIDE THE SIDEBAR PANEL */
+        .sidebar-preview-container {
+            width: 100%;
+            height: 120px;
+            background: #020306;
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+        }
+        .sidebar-preview-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover;
+            opacity: 0.5;
+            z-index: 1;
+        }
+        .sidebar-preview-text {
+            z-index: 2;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 8px #000;
         }
 
         /* PLAYER PAWNS PRESETS WITH FUTURISTIC GLOW */
@@ -677,7 +710,7 @@
             padding: 20px;
             border-radius: 16px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            width: 320px;
+            width: 340px;
         }
 
         .sidebar h3 {
@@ -881,7 +914,12 @@
                 <h3 id="sidebar-title">Terminal Info</h3>
                 
                 <div id="design-panel" style="display: none;">
-                    <p style="font-size: 13px; color: #94a3b8;">Select a node tile vector to configure matrix values.</p>
+                    <!-- Real-time Hologram Preview Card Design Box -->
+                    <div class="sidebar-preview-container">
+                        <img id="sidebar-live-preview-img" class="sidebar-preview-bg" src="" style="display:none;">
+                        <div id="sidebar-live-preview-num" class="sidebar-preview-text">Node</div>
+                    </div>
+
                     <div class="form-group">
                         <label>Selected Vector:</label>
                         <input type="text" id="edit-tile-id" readonly style="background:rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.05); color: var(--primary);">
@@ -901,10 +939,18 @@
                         <label>Mission Prompt Instruction:</label>
                         <input type="text" id="edit-tile-activity" placeholder="e.g., Decrypt the missing sentence pattern">
                     </div>
-                    <div class="form-group">
-                        <label>Hologram Visual URL (Background Link):</label>
-                        <input type="text" id="edit-tile-image" placeholder="Image web reference target (.jpg, .png)">
+
+                    <!-- NEW: Separated image parameters inputs -->
+                    <div class="form-group" style="border: 1px solid rgba(0, 240, 255, 0.2); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2);">
+                        <label style="color: var(--primary);">🖼️ Tile Background Image URL:</label>
+                        <input type="text" id="edit-tile-bg-image" placeholder="Target image URL (.jpg, .png)" oninput="updateSidebarLivePreview()">
                     </div>
+
+                    <div class="form-group" style="border: 1px solid rgba(57, 255, 20, 0.2); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2);">
+                        <label style="color: var(--success);">💥 Pop-Up Modal Image URL:</label>
+                        <input type="text" id="edit-tile-modal-image" placeholder="Target image URL (.jpg, .png)">
+                    </div>
+
                     <div class="form-group">
                         <label>Quantum Video Streams (YouTube link):</label>
                         <input type="text" id="edit-tile-video" placeholder="Paste clip URL destination">
@@ -1045,11 +1091,11 @@
         let boardData = {};
 
         // --- CHAOS TILE EFFECT STATE ---
-        let playerShielded = [false];       // "Shielded" buff: blocks next backward movement
-        let playerHauntedTurns = [0];       // "Ghostly Possession" debuff: # of upcoming turns with halved dice
-        let playerFrozenTurns = [0];        // "Fog of War" debuff: # of upcoming turns frozen (no movement)
-        let chaosJackpotChainActive = false; // true while resolving a doubled chain from a Jackpot landing on another chaos tile
-        let chaosPendingExtraTurn = false;   // true if current player gets to roll again (Jackpot)
+        let playerShielded = [false];       
+        let playerHauntedTurns = [0];       
+        let playerFrozenTurns = [0];        
+        let chaosJackpotChainActive = false; 
+        let chaosPendingExtraTurn = false;   
 
         // Animation Concurrency Race Condition Lock
         let isAnimating = false;
@@ -1061,22 +1107,38 @@
 
         function initData() {
             for(let i = 1; i <= 100; i++) {
-                boardData[i] = { id: i, activity: "", image: "", video: "", transport: null, hidden: false, chaos: false };
+                boardData[i] = { id: i, activity: "", tileImage: "", modalImage: "", video: "", transport: null, hidden: false, chaos: false };
             }
             boardData[3].activity = "Surprise task! Read this word out loud: 'Phenomenal'"; 
             boardData[3].hidden = true; 
             boardData[7].activity = "Sing your favorite song out loud!";
-            boardData[7].image = "https://images.unsplash.com/photo-1516280440614-37939bbacd6a?w=500";
+            boardData[7].modalImage = "https://images.unsplash.com/photo-1516280440614-37939bbacd6a?w=500";
             
             boardData[5].transport = { type: 'ladder', target: 14 };
             boardData[18].transport = { type: 'snake', target: 6 };
             boardData[22].transport = { type: 'ladder', target: 35 };
             boardData[32].transport = { type: 'snake', target: 15 };
 
-            // A few default Chaos Tiles so the feature is visible out of the box
             boardData[11].chaos = true;
             boardData[26].chaos = true;
             boardData[39].chaos = true;
+        }
+
+        function updateSidebarLivePreview() {
+            const numEl = document.getElementById('sidebar-live-preview-num');
+            const imgEl = document.getElementById('sidebar-live-preview-img');
+            const bgUrl = document.getElementById('edit-tile-bg-image').value.trim();
+
+            if (selectedTileId) {
+                numEl.innerText = `Node ${selectedTileId}`;
+            }
+
+            if (bgUrl) {
+                imgEl.src = bgUrl;
+                imgEl.style.display = 'block';
+            } else {
+                imgEl.style.display = 'none';
+            }
         }
 
         function setupPeerNetworkEngine() {
@@ -1325,9 +1387,8 @@
             banner.className = playerColors[activePlayerIndex];
             banner.innerText = `🎮 ${playerNames[activePlayerIndex]}'s Turn`;
             
-            // restart animation cleanly even if a previous banner is still fading
             banner.classList.remove('show');
-            void banner.offsetWidth; // force reflow so the transition retriggers
+            void banner.offsetWidth; 
             banner.classList.add('show');
 
             clearTimeout(window._turnBannerTimeout);
@@ -1336,16 +1397,11 @@
             }, 1500);
         }
 
-        // ===================== PROJECTOR / FULLSCREEN BOARD MODE =====================
-
         function requestFullscreenSafely() {
             const el = document.documentElement;
             const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
             if (request) {
-                request.call(el).catch(() => {
-                    // Some browsers (or insecure contexts/iframes) reject this — the clean
-                    // chrome-free board view still works fine without true OS fullscreen.
-                });
+                request.call(el).catch(() => {});
             }
         }
 
@@ -1361,7 +1417,6 @@
             const wrapper = document.querySelector('.board-wrapper');
             if (!wrapper) return;
 
-            // Measure at natural size first
             wrapper.style.transform = 'none';
             const rect = wrapper.getBoundingClientRect();
             const availW = window.innerWidth * 0.96;
@@ -1385,8 +1440,6 @@
         }
 
         document.addEventListener('fullscreenchange', () => {
-            // If the browser exits fullscreen on its own (Esc key, alt-tab on some OSes),
-            // make sure the normal UI chrome comes back too.
             if (!document.fullscreenElement && document.body.classList.contains('projector-mode')) {
                 document.body.classList.remove('projector-mode');
             }
@@ -1400,8 +1453,6 @@
         window.addEventListener('resize', () => {
             recalcProjectorScale();
         });
-
-        // ================================================================================
 
         function advanceTurn() {
             isAnimating = false;
@@ -1425,7 +1476,7 @@
                     let tileNum = (r % 2 === 0) ? (r * columns) + (c + 1) : (r * columns) + (columns - c);
 
                     if (tileNum <= totalTiles) {
-                        const data = boardData[tileNum] || { id: tileNum, activity: "", image: "", video: "", transport: null, hidden: false, chaos: false };
+                        const data = boardData[tileNum] || { id: tileNum, activity: "", tileImage: "", modalImage: "", video: "", transport: null, hidden: false, chaos: false };
                         const tile = document.createElement('div');
                         tile.className = 'tile';
                         tile.id = `tile-${tileNum}`;
@@ -1444,10 +1495,11 @@
                             actSpan.innerText = "❓ Unknown anomaly";
                             tile.appendChild(actSpan);
                         } else {
-                            if(data.image) {
+                            // Support for the dedicated tile background parameter link mapping
+                            if(data.tileImage) {
                                 const bgImg = document.createElement('img');
                                 bgImg.className = 'tile-bg-preview';
-                                bgImg.src = data.image;
+                                bgImg.src = data.tileImage;
                                 tile.appendChild(bgImg);
                             }
 
@@ -1551,7 +1603,7 @@
             ctx.arc(fromX, fromY, 5, 0, 2 * Math.PI);
             ctx.fill();
             
-            ctx.shadowBlur = 0; // Reset canvas layout glow trace lines instantly
+            ctx.shadowBlur = 0; 
         }
 
         function drawTransportPaths() {
@@ -1653,7 +1705,7 @@
         function handleTileClick(id) {
             if (currentMode !== 'design') {
                 if (isAnimating) return; 
-                if(boardData[id]?.activity || boardData[id]?.image || boardData[id]?.video) {
+                if(boardData[id]?.activity || boardData[id]?.tileImage || boardData[id]?.modalImage || boardData[id]?.video) {
                     showModal(id);
                 }
                 return;
@@ -1664,7 +1716,10 @@
             document.getElementById('edit-tile-hidden').checked = boardData[id]?.hidden || false;
             document.getElementById('edit-tile-chaos').checked = boardData[id]?.chaos || false;
             document.getElementById('edit-tile-activity').value = boardData[id]?.activity || "";
-            document.getElementById('edit-tile-image').value = boardData[id]?.image || "";
+            
+            // Map inputs safely to separated storage variables
+            document.getElementById('edit-tile-bg-image').value = boardData[id]?.tileImage || "";
+            document.getElementById('edit-tile-modal-image').value = boardData[id]?.modalImage || "";
             document.getElementById('edit-tile-video').value = boardData[id]?.video || "";
             
             if(boardData[id]?.transport) {
@@ -1675,6 +1730,7 @@
                 document.getElementById('edit-tile-target').value = '';
             }
             toggleLinkInput();
+            updateSidebarLivePreview(); // Run real-time popup design update immediately
         }
 
         function toggleLinkInput() {
@@ -1712,7 +1768,10 @@
             boardData[selectedTileId].hidden = document.getElementById('edit-tile-hidden').checked;
             boardData[selectedTileId].chaos = document.getElementById('edit-tile-chaos').checked;
             boardData[selectedTileId].activity = document.getElementById('edit-tile-activity').value;
-            boardData[selectedTileId].image = document.getElementById('edit-tile-image').value;
+            
+            // Map committed values cleanly to data properties register keys
+            boardData[selectedTileId].tileImage = document.getElementById('edit-tile-bg-image').value;
+            boardData[selectedTileId].modalImage = document.getElementById('edit-tile-modal-image').value;
             boardData[selectedTileId].video = document.getElementById('edit-tile-video').value;
 
             renderBoard();
@@ -1721,7 +1780,7 @@
 
         function exportMapFile() {
             const outputPackage = {
-                version: "v14-engine",
+                version: "v14-engine-independent-img",
                 totalTiles: totalTiles,
                 boardData: boardData
             };
@@ -1744,8 +1803,15 @@
                     if (parsedData.totalTiles && parsedData.boardData) {
                         totalTiles = parsedData.totalTiles;
                         boardData = parsedData.boardData;
-                        // Backfill chaos flag for maps saved before this feature existed
-                        Object.values(boardData).forEach(tile => { if (tile.chaos === undefined) tile.chaos = false; });
+                        
+                        Object.values(boardData).forEach(tile => { 
+                            if (tile.chaos === undefined) tile.chaos = false; 
+                            // Retroactive validation patch compatibility handling mapping structures
+                            if (tile.image && !tile.tileImage && !tile.modalImage) {
+                                tile.tileImage = tile.image;
+                                tile.modalImage = tile.image;
+                            }
+                        });
                         
                         playerPositions = Array(playerCount).fill(1);
                         activePlayerIndex = 0;
@@ -1791,8 +1857,9 @@
             }
 
             const imgElement = document.getElementById('modal-tile-img');
-            if(data.image) {
-                imgElement.src = data.image;
+            // Explicit tracking update targets using modal specific variables parameter data block paths
+            if(data.modalImage) {
+                imgElement.src = data.modalImage;
                 imgElement.style.display = 'block';
             } else {
                 imgElement.style.display = 'none';
@@ -1811,9 +1878,7 @@
         // CHAOS TILE SLOT MACHINE ENGINE
         // =====================================================================
 
-        // Effects that only make sense with 2+ players/teams on the board
         const CHAOS_EFFECTS_MULTI = ['team_swap', 'village_harvest', 'spectral_mirror'];
-
 
         function triggerChaosTile() {
             const modal = document.getElementById('chaos-modal');
@@ -1838,7 +1903,6 @@
                     clearInterval(spinInterval);
                     reels.forEach(r => r.classList.remove('spinning'));
 
-                    // Roll the die FIRST — this roll decides which Chaos effect plays out
                     const roll = Math.floor(Math.random() * 6) + 1;
                     reels.forEach(r => r.innerText = roll);
                     nameEl.innerText = `🎲 You rolled a ${roll}!`;
@@ -1854,16 +1918,12 @@
             modal.classList.add('open');
         }
 
-        // The roll comes first, then the roll's value picks which Chaos effect plays.
-        // If fewer than 2 players are active, the 3 multiplayer-only effects are
-        // excluded from the pool entirely so the roll always lands on something playable.
         function pickChaosEffectForRoll(roll) {
             const allEffects = ['double_or_nothing', 'team_swap', 'shielded', 'ghostly_possession', 'village_harvest', 'spectral_mirror', 'ancestral', 'fog_of_war'];
             let pool = allEffects;
             if (playerCount < 2) {
                 pool = allEffects.filter(e => !CHAOS_EFFECTS_MULTI.includes(e));
             }
-            // Use the roll to seed which effect activates, wrapping into the available pool
             return pool[(roll - 1) % pool.length];
         }
 
@@ -1930,7 +1990,6 @@
             advanceTurn();
         }
 
-        // --- "Double or Nothing" ---
         function handleDoubleOrNothing(selectorRoll) {
             document.getElementById('slot-effect-desc').innerText = "Declare it: do you want to gamble?";
             document.getElementById('slot-gamble-prompt').style.display = 'flex';
@@ -1963,7 +2022,6 @@
             }
         }
 
-        // --- "Team Swap" ---
         function handleTeamSwap(roll) {
             const p = activePlayerIndex;
 
@@ -1983,7 +2041,6 @@
             }
         }
 
-        // --- "Shielded" ---
         function handleShielded(roll) {
             const p = activePlayerIndex;
 
@@ -1995,7 +2052,6 @@
             }
         }
 
-        // helper used by other effects (traps, double-or-nothing) to consume a shield if present
         function consumeShieldIfPresent(playerIdx) {
             if (playerShielded[playerIdx]) {
                 playerShielded[playerIdx] = false;
@@ -2004,7 +2060,6 @@
             return false;
         }
 
-        // --- "Ghostly Possession" ---
         function handleGhostlyPossession(roll) {
             const p = activePlayerIndex;
 
@@ -2023,7 +2078,6 @@
             }
         }
 
-        // --- "Village Harvest" ---
         function handleVillageHarvest(roll) {
             const p = activePlayerIndex;
             const columns = 10;
@@ -2055,7 +2109,6 @@
             }
         }
 
-        // --- "Spectral Mirror" ---
         function handleSpectralMirror(roll) {
             const p = activePlayerIndex;
 
@@ -2080,7 +2133,6 @@
             finishChaosEffect(`Rolled ${roll}! The mirror swaps ${playerNames[p]} with the player furthest ${direction} — ${playerNames[targetIdx]}. Now at node ${theirPos}.`);
         }
 
-        // --- "Ancestral Blessing/Curse" ---
         function handleAncestral(roll) {
             const p = activePlayerIndex;
 
@@ -2090,7 +2142,7 @@
                 } else {
                     let newPos = Math.max(playerPositions[p] - 6, 1);
                     playerPositions[p] = newPos;
-                    finishChaosEffect(`Rolled 1 — "Curse of the Past"! ${playerNames[p]} moves back 6 tiles to node ${newPos}. (Optional: state a "Regret" about the past to soften the blow next time!)`);
+                    finishChaosEffect(`Rolled 1 — "Curse of the Past"! ${playerNames[p]} moves back 6 tiles to node ${newPos}.`);
                 }
             } else if (roll <= 5) {
                 let newPos = Math.min(playerPositions[p] + roll, totalTiles);
@@ -2098,11 +2150,10 @@
                 finishChaosEffect(`Rolled ${roll} — "Standard Life". ${playerNames[p]} moves forward ${roll} tiles to node ${newPos}.`);
             } else {
                 chaosPendingExtraTurn = true;
-                finishChaosEffect(`Rolled 6 — "JACKPOT"! 🎉 ${playerNames[p]} gets an extra turn immediately. (Optional: shout a "Blessing" to celebrate!) If you land on another Chaos Tile, that effect doubles in spirit — go big!`);
+                finishChaosEffect(`Rolled 6 — "JACKPOT"! 🎉 ${playerNames[p]} gets an extra turn immediately.`);
             }
         }
 
-        // --- "Fog of War" ---
         function handleFogOfWar(roll) {
             const p = activePlayerIndex;
 
@@ -2128,7 +2179,6 @@
             }
         }
 
-        // Standard 6-sided die pip layouts on a 3x3 grid (1 = top-left..bottom-right indices 0-8)
         const DIE_PIP_LAYOUTS = {
             1: [4],
             2: [0, 8],
@@ -2150,9 +2200,6 @@
             }
         }
 
-        // Shows the dice result popup, then calls onDone() once it's time to continue.
-        // Digital mode: animates a tumbling die before landing on the number.
-        // Concrete mode: just displays the number the player already entered, no tumble.
         function showDiceResultPopup(dieResult, isDigital, noteText, onDone) {
             const overlay = document.getElementById('dice-popup-overlay');
             const playerLabel = document.getElementById('dice-popup-player');
@@ -2199,10 +2246,9 @@
 
             let activePlayerName = playerNames[activePlayerIndex];
 
-            // "Fog of War" Frozen debuff: skip movement entirely for this turn
             if (playerFrozenTurns[activePlayerIndex] > 0) {
                 playerFrozenTurns[activePlayerIndex]--;
-                updateStatusText(`🌫️ ${activePlayerName} is frozen in thick fog and cannot move this turn! (${playerFrozenTurns[activePlayerIndex]} turn(s) of fog remaining)`);
+                updateStatusText(`🌫️ ${activePlayerName} is frozen in thick fog and cannot move this turn!`);
                 setTimeout(() => { advanceTurn(); }, 1000);
                 return;
             }
@@ -2210,16 +2256,15 @@
             let dieResult = (manualValue === null) ? Math.floor(Math.random() * 6) + 1 : manualValue;
             const isDigitalRoll = (manualValue === null);
 
-            // "Ghostly Possession" Haunted debuff: halve the roll, rounded down
             let hauntedNote = "";
             if (playerHauntedTurns[activePlayerIndex] > 0) {
                 const originalRoll = dieResult;
                 dieResult = Math.floor(dieResult / 2);
                 playerHauntedTurns[activePlayerIndex]--;
-                hauntedNote = `👻 Haunted! Roll halved from ${originalRoll} to ${dieResult}. (${playerHauntedTurns[activePlayerIndex]} turn(s) left)`;
+                hauntedNote = `👻 Haunted! Roll halved from ${originalRoll} to ${dieResult}.`;
             }
 
-            updateStatusText(`${activePlayerName} output generator threw value: **${dieResult}**.${hauntedNote ? ' ' + hauntedNote : ''}`);
+            updateStatusText(`${activePlayerName} output generator threw value: **${dieResult}**.`);
 
             showDiceResultPopup(dieResult, isDigitalRoll, hauntedNote, () => {
                 continueAfterDiceRoll(dieResult, activePlayerName);
@@ -2248,7 +2293,7 @@
                     if(currentTileData.chaos) {
                         requiresModal = true;
                         triggerChaosTile();
-                    } else if(currentTileData.activity || currentTileData.image || currentTileData.video) {
+                    } else if(currentTileData.activity || currentTileData.tileImage || currentTileData.modalImage || currentTileData.video) {
                         requiresModal = true;
                         showModal(playerPositions[activePlayerIndex]);
                     }
@@ -2256,7 +2301,7 @@
                     if(currentTileData.transport) {
                         const link = currentTileData.transport;
                         if (link.type === 'snake' && consumeShieldIfPresent(activePlayerIndex)) {
-                            updateStatusText(`🛡️ ${activePlayerName}'s Shield breaks! It absorbed the plasma overload that would have dropped them to node ${link.target}.`);
+                            updateStatusText(`🛡️ ${activePlayerName}'s Shield breaks! It absorbed the penalty.`);
                         } else {
                             updateStatusText(`⚡ SHIFT DETECTED! ${activePlayerName} warped instantly across from node ${playerPositions[activePlayerIndex]} to ${link.target}`);
                             playerPositions[activePlayerIndex] = link.target;
