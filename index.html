@@ -1089,6 +1089,7 @@
         const playerColors = ['p-red', 'p-blue', 'p-green', 'p-yellow', 'p-orange', 'p-purple', 'p-pink', 'p-teal'];
         const playerNames = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8'];
         let boardData = {};
+        let originalBoardBackup = null;
 
         // --- CHAOS TILE EFFECT STATE ---
         let playerShielded = [false];       
@@ -1122,6 +1123,8 @@
             boardData[11].chaos = true;
             boardData[26].chaos = true;
             boardData[39].chaos = true;
+
+            originalBoardBackup = JSON.stringify(boardData);
         }
 
         function updateSidebarLivePreview() {
@@ -1304,6 +1307,10 @@
         function triggerGlobalReset() {
             isAnimating = false;
             setDiceControlsLock(false);
+
+            if (originalBoardBackup) {
+                boardData = JSON.parse(originalBoardBackup);
+            }
 
             playerPositions = [];
             for (let i = 0; i < playerCount; i++) {
@@ -1803,6 +1810,8 @@
                     if (parsedData.totalTiles && parsedData.boardData) {
                         totalTiles = parsedData.totalTiles;
                         boardData = parsedData.boardData;
+
+                        originalBoardBackup = JSON.stringify(boardData);
                         
                         Object.values(boardData).forEach(tile => { 
                             if (tile.chaos === undefined) tile.chaos = false; 
