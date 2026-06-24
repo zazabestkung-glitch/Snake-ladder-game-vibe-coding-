@@ -1119,6 +1119,9 @@
         
         <div id="remote-turn-card-display" class="turn-card p-red" style="margin-bottom: 20px; padding: 15px;">Active Core Player Loop</div>
 
+        <!-- Shows only while an activity popup is open on the main screen and has a picture -->
+        <button id="remote-image-size-action" class="btn-action" style="display:none; width: 100%; padding: 14px; font-size: 15px; background: rgba(0, 240, 255, 0.15); border-color: var(--primary); color: var(--primary); margin-bottom: 12px;" onclick="emitRemoteImageSizeToggle()" data-action="EXPAND_IMAGE">🔍 Make Picture Bigger</button>
+
         <!-- Shows only while an activity popup is open on the main screen -->
         <button id="remote-close-popup-action" class="btn-action" style="display:none; width: 100%; padding: 16px; font-size: 16px; background: var(--chaos); color: #1a0a00; border-color: var(--chaos); box-shadow: 0 0 15px var(--chaos); margin-bottom: 18px;" onclick="emitRemoteEvent('CLOSE_POPUP')">✖ Close Popup on Main Screen</button>
         
@@ -1501,12 +1504,23 @@
 
             p2pConnection.on('data', (payload) => {
                 if (currentNetworkRole === 'host') {
-                    // Allow closing the activity popup from the remote even while
-                    // isAnimating is true (the popup itself is what's holding that lock).
+                    // Allow closing the activity popup, and expanding/minimizing its image,
+                    // from the remote even while isAnimating is true (the popup itself is
+                    // what's holding that lock).
                     if (payload.cmd === 'CLOSE_POPUP') {
                         if (document.getElementById('activity-modal').classList.contains('open')) {
                             closeModal();
                         }
+                        return;
+                    }
+                    if (payload.cmd === 'EXPAND_IMAGE') {
+                        if (document.getElementById('activity-modal').classList.contains('open')) {
+                            openImageLightbox(document.getElementById('modal-tile-img').src);
+                        }
+                        return;
+                    }
+                    if (payload.cmd === 'MINIMIZE_IMAGE') {
+                        closeImageLightbox();
                         return;
                     }
 
@@ -1545,6 +1559,8 @@
                         Array.from(rNums).forEach(btn => btn.disabled = payload.animatingState);
 
                         const closePopupBtn = document.getElementById('remote-close-popup-action');
+                        const imageSizeBtn = document.getElementById('remote-image-size-action');
+
                         if (payload.popupOpen) {
                             closePopupBtn.style.display = 'block';
                             document.getElementById('remote-log-display').innerText = "🎯 An activity popped up on the main screen!";
@@ -1554,9 +1570,23 @@
                                 ? "⏳ Vectors transferring... Input lock enabled." 
                                 : `Online. Core Matrix Mode: [${payload.dMode.toUpperCase()}]`;
                         }
+
+                        if (payload.popupOpen && payload.hasImage) {
+                            imageSizeBtn.style.display = 'block';
+                            if (payload.lightboxOpen) {
+                                imageSizeBtn.innerText = "🔽 Minimize Picture";
+                                imageSizeBtn.dataset.action = 'MINIMIZE_IMAGE';
+                            } else {
+                                imageSizeBtn.innerText = "🔍 Make Picture Bigger";
+                                imageSizeBtn.dataset.action = 'EXPAND_IMAGE';
+                            }
+                        } else {
+                            imageSizeBtn.style.display = 'none';
+                        }
                     }
                     if(payload.cmd === 'POPUP_CLOSED') {
                         document.getElementById('remote-close-popup-action').style.display = 'none';
+                        document.getElementById('remote-image-size-action').style.display = 'none';
                     }
                 }
             });
@@ -1565,6 +1595,11 @@
         function emitRemoteEvent(commandString) {
             if(!p2pConnection) return alert("Remote node has not linked to a host screen platform.");
             p2pConnection.send({ cmd: commandString });
+        }
+
+        function emitRemoteImageSizeToggle() {
+            const btn = document.getElementById('remote-image-size-action');
+            emitRemoteEvent(btn.dataset.action || 'EXPAND_IMAGE');
         }
 
         function emitRemoteConcreteRoll(numValue) {
@@ -1586,13 +1621,17 @@
         function broadcastStateToRemote() {
             if(currentNetworkRole === 'host' && p2pConnection) {
                 const activityPopupOpen = document.getElementById('activity-modal').classList.contains('open');
+                const hasImage = document.getElementById('modal-image-wrap').style.display === 'block';
+                const lightboxOpen = document.getElementById('image-lightbox-overlay').classList.contains('open');
                 p2pConnection.send({
                     cmd: 'SYNC_STATE',
                     color: playerColors[activePlayerIndex],
                     text: `${playerNames[activePlayerIndex]} Turn`,
                     dMode: diceMode,
                     animatingState: isAnimating,
-                    popupOpen: activityPopupOpen
+                    popupOpen: activityPopupOpen,
+                    hasImage: hasImage,
+                    lightboxOpen: lightboxOpen
                 });
             }
         }
@@ -2187,10 +2226,12 @@
             if (!src) return;
             document.getElementById('image-lightbox-img').src = src;
             document.getElementById('image-lightbox-overlay').classList.add('open');
+            broadcastStateToRemote();
         }
 
         function closeImageLightbox() {
             document.getElementById('image-lightbox-overlay').classList.remove('open');
+            broadcastStateToRemote();
         }
 
         document.addEventListener('keydown', (e) => {
@@ -2200,6 +2241,7 @@
         function closeModal() {
             document.getElementById('modal-tile-video').src = "";
             document.getElementById('activity-modal').classList.remove('open');
+            document.getElementById('image-lightbox-overlay').classList.remove('open');
             advanceTurn();
             broadcastStateToRemote();
         }
