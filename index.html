@@ -761,9 +761,107 @@
 
         .io-box {
             margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px dashed rgba(255,255,255,0.1);
+            padding: 15px;
+            background: rgba(0,0,0,0.35);
+            border: 1px solid rgba(57, 255, 20, 0.25);
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.08);
         }
+        .io-box-title {
+            margin: 0 0 6px 0;
+            color: var(--success);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .io-box-subtitle {
+            margin: 0 0 12px 0;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+
+        /* Forge mode click-hint card in sidebar */
+        .forge-hint-card {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            background: rgba(0, 240, 255, 0.07);
+            border: 1px solid var(--border-glow);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 18px;
+        }
+        .forge-hint-icon {
+            font-size: 26px;
+            line-height: 1;
+        }
+        .forge-hint-card strong {
+            display: block;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .forge-hint-card p {
+            margin: 0;
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
+        /* TILE EDITOR POPUP (Forge Board tile click) */
+        .tile-editor-card {
+            max-width: 560px;
+            text-align: left;
+            max-height: 88vh;
+            overflow-y: auto;
+        }
+        .tile-editor-card .modal-title { text-align: center; }
+        .tile-editor-preview {
+            width: 100%;
+            height: 110px;
+            background: #020306;
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+            margin-bottom: 18px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+        }
+        .tile-editor-preview img {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover;
+            opacity: 0.5;
+            z-index: 1;
+        }
+        .tile-editor-preview span {
+            z-index: 2;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 8px #000;
+        }
+        .tile-editor-toggles {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+        .tile-editor-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .tile-editor-actions button { flex: 1; }
 
         /* POPUP MODAL COMPONENT (HOLOGRAM LOOK) */
         .modal-overlay {
@@ -914,65 +1012,20 @@
                 <h3 id="sidebar-title">Terminal Info</h3>
                 
                 <div id="design-panel" style="display: none;">
-                    <!-- Real-time Hologram Preview Card Design Box -->
-                    <div class="sidebar-preview-container">
-                        <img id="sidebar-live-preview-img" class="sidebar-preview-bg" src="" style="display:none;">
-                        <div id="sidebar-live-preview-num" class="sidebar-preview-text">Node</div>
+                    <!-- Forge Hint Card -->
+                    <div class="forge-hint-card">
+                        <span class="forge-hint-icon">🖱️</span>
+                        <div>
+                            <strong>Click any tile on the board</strong>
+                            <p>A popup will open letting you edit that tile's activity, images, video, hidden/chaos status and wormhole link.</p>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Selected Vector:</label>
-                        <input type="text" id="edit-tile-id" readonly style="background:rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.05); color: var(--primary);">
-                    </div>
-                    
-                    <label class="form-group-checkbox">
-                        <input type="checkbox" id="edit-tile-hidden">
-                        Convert into Hidden Singularity Trap
-                    </label>
-
-                    <label class="form-group-checkbox" style="color: var(--chaos);">
-                        <input type="checkbox" id="edit-tile-chaos" style="accent-color: var(--chaos);">
-                        🎰 Convert into Chaos Tile (Slot Machine)
-                    </label>
-
-                    <div class="form-group">
-                        <label>Mission Prompt Instruction:</label>
-                        <input type="text" id="edit-tile-activity" placeholder="e.g., Decrypt the missing sentence pattern">
-                    </div>
-
-                    <!-- NEW: Separated image parameters inputs -->
-                    <div class="form-group" style="border: 1px solid rgba(0, 240, 255, 0.2); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2);">
-                        <label style="color: var(--primary);">🖼️ Tile Background Image URL:</label>
-                        <input type="text" id="edit-tile-bg-image" placeholder="Target image URL (.jpg, .png)" oninput="updateSidebarLivePreview()">
-                    </div>
-
-                    <div class="form-group" style="border: 1px solid rgba(57, 255, 20, 0.2); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2);">
-                        <label style="color: var(--success);">💥 Pop-Up Modal Image URL:</label>
-                        <input type="text" id="edit-tile-modal-image" placeholder="Target image URL (.jpg, .png)">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Quantum Video Streams (YouTube link):</label>
-                        <input type="text" id="edit-tile-video" placeholder="Paste clip URL destination">
-                    </div>
-                    <div class="form-group">
-                        <label>Wormhole Shift Trajectory:</label>
-                        <select id="edit-tile-link-type" onchange="toggleLinkInput()">
-                            <option value="none">None</option>
-                            <option value="ladder">⚡ Gravity Booster (Moves Up)</option>
-                            <option value="snake">🐍 Plasma Overload (Drops Down)</option>
-                        </select>
-                    </div>
-                    <div class="form-group" id="link-target-group" style="display:none;">
-                        <label id="link-target-label">Wormhole Vector Target:</label>
-                        <input type="number" id="edit-tile-target" min="1">
-                    </div>
-                    <button class="btn-action" style="width:100%; background: var(--primary); color: var(--dark); font-weight: bold;" onclick="saveTileChanges()">Commit Configuration</button>
-
-                    <!-- Save & Load File Architecture Block -->
+                    <!-- Save & Load File Architecture Block (separated, standalone card) -->
                     <div class="io-box">
-                        <h4 style="margin: 0 0 10px 0; color: #fff; font-family: 'Orbitron', sans-serif; font-size:12px; text-transform:uppercase;">Storage Relays</h4>
-                        <button class="btn-action" style="width:100%; background: rgba(57, 255, 20, 0.15); border-color: var(--success); color: var(--success); margin-bottom: 10px;" onclick="exportMapFile()">💾 Backup Map Architecture</button>
+                        <h4 class="io-box-title">💽 Storage Relays</h4>
+                        <p class="io-box-subtitle">Save or load the entire board layout as a file. Independent from tile editing.</p>
+                        <button class="btn-action" style="width:100%; background: rgba(57, 255, 20, 0.15); border-color: var(--success); color: var(--success); margin-bottom: 12px;" onclick="exportMapFile()">💾 Backup Map Architecture</button>
                         
                         <label style="display:block; font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:4px; text-transform:uppercase;">📂 Deploy Archive Script:</label>
                         <input type="file" id="file-import-input" accept=".json" onchange="importMapFile(this)" style="font-size: 12px; padding: 4px; background: none; border: none;">
@@ -1075,13 +1128,75 @@
             <div class="dice-popup-note" id="dice-popup-note"></div>
         </div>
     </div>
+    <!-- FORGE BOARD TILE EDITOR POPUP -->
+    <div id="tileEditorModal" class="modal-overlay" onclick="if(event.target.id === 'tileEditorModal') closeTileEditor()">
+        <div class="modal-card tile-editor-card">
+            <h2 class="modal-title" id="editorTileTitle">Editing Tile #</h2>
+
+            <!-- Live Preview -->
+            <div class="tile-editor-preview">
+                <img id="te-preview-img" src="" style="display:none;">
+                <span id="te-preview-num">Node</span>
+            </div>
+
+            <div class="tile-editor-toggles">
+                <label class="form-group-checkbox">
+                    <input type="checkbox" id="edit-tile-hidden">
+                    Convert into Hidden Singularity Trap
+                </label>
+
+                <label class="form-group-checkbox" style="color: var(--chaos);">
+                    <input type="checkbox" id="edit-tile-chaos" style="accent-color: var(--chaos);">
+                    🎰 Convert into Chaos Tile (Slot Machine)
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Mission Prompt Instruction:</label>
+                <input type="text" id="edit-tile-activity" placeholder="e.g., Decrypt the missing sentence pattern">
+            </div>
+
+            <div class="form-group" style="border: 1px solid rgba(0, 240, 255, 0.2); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2);">
+                <label style="color: var(--primary);">🖼️ Tile Background Image URL:</label>
+                <input type="text" id="edit-tile-bg-image" placeholder="Target image URL (.jpg, .png)">
+            </div>
+
+            <div class="form-group" style="border: 1px solid rgba(57, 255, 20, 0.2); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2);">
+                <label style="color: var(--success);">💥 Pop-Up Modal Image URL:</label>
+                <input type="text" id="edit-tile-modal-image" placeholder="Target image URL (.jpg, .png)">
+            </div>
+
+            <div class="form-group">
+                <label>Quantum Video Streams (YouTube link):</label>
+                <input type="text" id="edit-tile-video" placeholder="Paste clip URL destination">
+            </div>
+
+            <div class="form-group">
+                <label>Wormhole Shift Trajectory:</label>
+                <select id="edit-tile-link-type" onchange="toggleLinkInput()">
+                    <option value="none">None</option>
+                    <option value="ladder">⚡ Gravity Booster (Moves Up)</option>
+                    <option value="snake">🐍 Plasma Overload (Drops Down)</option>
+                </select>
+            </div>
+            <div class="form-group" id="link-target-group" style="display:none;">
+                <label id="link-target-label">Wormhole Vector Target:</label>
+                <input type="number" id="edit-tile-target" min="1">
+            </div>
+
+            <div class="tile-editor-actions">
+                <button class="btn-action" style="background: rgba(255,255,255,0.1);" onclick="closeTileEditor()">Cancel</button>
+                <button class="btn-action" style="background: var(--primary); color: var(--dark); font-weight: bold;" onclick="saveTileChanges()">✅ Commit Configuration</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         let totalTiles = 40; 
         let currentMode = 'play'; 
         let diceMode = 'digital'; 
         let selectedTileId = null;
-        
+        let currentlyEditingTileId = null;
         let playerCount = 1; 
         let activePlayerIndex = 0; 
         
@@ -1106,6 +1221,56 @@
         let p2pConnection = null;
         let currentNetworkRole = 'host'; 
 
+        function openTileEditor(tileId) {
+            currentlyEditingTileId = tileId;
+            selectedTileId = tileId;
+            const tileData = boardData[tileId];
+            if (!tileData) return;
+
+            document.getElementById('editorTileTitle').innerText = `Editing Tile #${tileId}`;
+            document.getElementById('edit-tile-hidden').checked = tileData.hidden || false;
+            document.getElementById('edit-tile-chaos').checked = tileData.chaos || false;
+            document.getElementById('edit-tile-activity').value = tileData.activity || "";
+            document.getElementById('edit-tile-bg-image').value = tileData.tileImage || "";
+            document.getElementById('edit-tile-modal-image').value = tileData.modalImage || "";
+            document.getElementById('edit-tile-video').value = tileData.video || "";
+
+            if (tileData.transport) {
+                document.getElementById('edit-tile-link-type').value = tileData.transport.type;
+                document.getElementById('edit-tile-target').value = tileData.transport.target;
+            } else {
+                document.getElementById('edit-tile-link-type').value = 'none';
+                document.getElementById('edit-tile-target').value = '';
+            }
+            toggleLinkInput();
+            updateTileEditorPreview();
+
+            document.getElementById('tileEditorModal').classList.add('open');
+        }
+
+        function closeTileEditor() {
+            document.getElementById('tileEditorModal').classList.remove('open');
+            currentlyEditingTileId = null;
+        }
+
+        function updateTileEditorPreview() {
+            const numEl = document.getElementById('te-preview-num');
+            const imgEl = document.getElementById('te-preview-img');
+            const bgUrl = document.getElementById('edit-tile-bg-image').value.trim();
+
+            if (currentlyEditingTileId) {
+                numEl.innerText = `Node ${currentlyEditingTileId}`;
+            }
+
+            if (bgUrl) {
+                imgEl.src = bgUrl;
+                imgEl.style.display = 'block';
+            } else {
+                imgEl.style.display = 'none';
+            }
+        }
+        document.getElementById('edit-tile-bg-image').addEventListener('input', updateTileEditorPreview);
+
         function initData() {
             for(let i = 1; i <= 100; i++) {
                 boardData[i] = { id: i, activity: "", tileImage: "", modalImage: "", video: "", transport: null, hidden: false, chaos: false };
@@ -1125,23 +1290,6 @@
             boardData[39].chaos = true;
 
             originalBoardBackup = JSON.stringify(boardData);
-        }
-
-        function updateSidebarLivePreview() {
-            const numEl = document.getElementById('sidebar-live-preview-num');
-            const imgEl = document.getElementById('sidebar-live-preview-img');
-            const bgUrl = document.getElementById('edit-tile-bg-image').value.trim();
-
-            if (selectedTileId) {
-                numEl.innerText = `Node ${selectedTileId}`;
-            }
-
-            if (bgUrl) {
-                imgEl.src = bgUrl;
-                imgEl.style.display = 'block';
-            } else {
-                imgEl.style.display = 'none';
-            }
         }
 
         function setupPeerNetworkEngine() {
@@ -1717,27 +1865,8 @@
                 }
                 return;
             }
-            
-            selectedTileId = id;
-            document.getElementById('edit-tile-id').value = id;
-            document.getElementById('edit-tile-hidden').checked = boardData[id]?.hidden || false;
-            document.getElementById('edit-tile-chaos').checked = boardData[id]?.chaos || false;
-            document.getElementById('edit-tile-activity').value = boardData[id]?.activity || "";
-            
-            // Map inputs safely to separated storage variables
-            document.getElementById('edit-tile-bg-image').value = boardData[id]?.tileImage || "";
-            document.getElementById('edit-tile-modal-image').value = boardData[id]?.modalImage || "";
-            document.getElementById('edit-tile-video').value = boardData[id]?.video || "";
-            
-            if(boardData[id]?.transport) {
-                document.getElementById('edit-tile-link-type').value = boardData[id].transport.type;
-                document.getElementById('edit-tile-target').value = boardData[id].transport.target;
-            } else {
-                document.getElementById('edit-tile-link-type').value = 'none';
-                document.getElementById('edit-tile-target').value = '';
-            }
-            toggleLinkInput();
-            updateSidebarLivePreview(); // Run real-time popup design update immediately
+
+            openTileEditor(id);
         }
 
         function toggleLinkInput() {
@@ -1781,8 +1910,10 @@
             boardData[selectedTileId].modalImage = document.getElementById('edit-tile-modal-image').value;
             boardData[selectedTileId].video = document.getElementById('edit-tile-video').value;
 
+            const savedId = selectedTileId;
+            closeTileEditor();
             renderBoard();
-            updateStatusText(`Saved modifications for Vector Node ${selectedTileId}!`);
+            updateStatusText(`Saved modifications for Vector Node ${savedId}!`);
         }
 
         function exportMapFile() {
