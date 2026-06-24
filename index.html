@@ -1118,6 +1118,9 @@
         <p style="color: var(--primary); font-size: 14px; margin-bottom: 25px; text-transform: uppercase;">Paired safely with main mainframe screen core.</p>
         
         <div id="remote-turn-card-display" class="turn-card p-red" style="margin-bottom: 20px; padding: 15px;">Active Core Player Loop</div>
+
+        <!-- Shows only while an activity popup is open on the main screen -->
+        <button id="remote-close-popup-action" class="btn-action" style="display:none; width: 100%; padding: 16px; font-size: 16px; background: var(--chaos); color: #1a0a00; border-color: var(--chaos); box-shadow: 0 0 15px var(--chaos); margin-bottom: 18px;" onclick="emitRemoteEvent('CLOSE_POPUP')">✖ Close Popup on Main Screen</button>
         
         <!-- Adaptive Remote Input Interface Panel Container -->
         <div class="remote-ctrl-box">
@@ -1291,6 +1294,7 @@
         let playerFrozenTurns = [0];        
         let chaosJackpotChainActive = false; 
         let chaosPendingExtraTurn = false;   
+        let chaosSpinInterval = null;
 
         // Animation Concurrency Race Condition Lock
         let isAnimating = false;
@@ -1497,6 +1501,15 @@
 
             p2pConnection.on('data', (payload) => {
                 if (currentNetworkRole === 'host') {
+                    // Allow closing the activity popup from the remote even while
+                    // isAnimating is true (the popup itself is what's holding that lock).
+                    if (payload.cmd === 'CLOSE_POPUP') {
+                        if (document.getElementById('activity-modal').classList.contains('open')) {
+                            closeModal();
+                        }
+                        return;
+                    }
+
                     if (isAnimating) return;
 
                     if(payload.cmd === 'ROLL_DICE_DIGITAL') {
@@ -1531,9 +1544,19 @@
                         const rNums = document.getElementsByClassName('remote-num-btn');
                         Array.from(rNums).forEach(btn => btn.disabled = payload.animatingState);
 
-                        document.getElementById('remote-log-display').innerText = payload.animatingState 
-                            ? "⏳ Vectors transferring... Input lock enabled." 
-                            : `Online. Core Matrix Mode: [${payload.dMode.toUpperCase()}]`;
+                        const closePopupBtn = document.getElementById('remote-close-popup-action');
+                        if (payload.popupOpen) {
+                            closePopupBtn.style.display = 'block';
+                            document.getElementById('remote-log-display').innerText = "🎯 An activity popped up on the main screen!";
+                        } else {
+                            closePopupBtn.style.display = 'none';
+                            document.getElementById('remote-log-display').innerText = payload.animatingState 
+                                ? "⏳ Vectors transferring... Input lock enabled." 
+                                : `Online. Core Matrix Mode: [${payload.dMode.toUpperCase()}]`;
+                        }
+                    }
+                    if(payload.cmd === 'POPUP_CLOSED') {
+                        document.getElementById('remote-close-popup-action').style.display = 'none';
                     }
                 }
             });
@@ -1562,13 +1585,22 @@
 
         function broadcastStateToRemote() {
             if(currentNetworkRole === 'host' && p2pConnection) {
+                const activityPopupOpen = document.getElementById('activity-modal').classList.contains('open');
                 p2pConnection.send({
                     cmd: 'SYNC_STATE',
                     color: playerColors[activePlayerIndex],
                     text: `${playerNames[activePlayerIndex]} Turn`,
                     dMode: diceMode,
-                    animatingState: isAnimating
+                    animatingState: isAnimating,
+                    popupOpen: activityPopupOpen
                 });
+            }
+        }
+
+        // Tell the remote the host's activity popup has been closed (e.g. by a reset)
+        function notifyRemotePopupClosed() {
+            if(currentNetworkRole === 'host' && p2pConnection) {
+                p2pConnection.send({ cmd: 'POPUP_CLOSED' });
             }
         }
 
@@ -1583,6 +1615,18 @@
         function triggerGlobalReset() {
             isAnimating = false;
             setDiceControlsLock(false);
+
+            // Force-close any popup left open (activity, chaos, image lightbox, tile editor)
+            // so a reset never leaves a stuck modal blocking the board.
+            if (chaosSpinInterval) {
+                clearInterval(chaosSpinInterval);
+                chaosSpinInterval = null;
+            }
+            document.getElementById('chaos-modal').classList.remove('open');
+            document.getElementById('activity-modal').classList.remove('open');
+            document.getElementById('image-lightbox-overlay').classList.remove('open');
+            document.getElementById('modal-tile-video').src = "";
+            notifyRemotePopupClosed();
 
             if (originalBoardBackup) {
                 boardData = JSON.parse(originalBoardBackup);
@@ -1599,6 +1643,7 @@
             updateTurnVisual();
             updateAllPawnsVisual();
             drawTransportPaths();
+            renderBoard();
             updateStatusText("🔄 System flush initialized! All data blocks sent to entry node vector 1.");
             
             if(currentNetworkRole === 'remote') {
@@ -2135,6 +2180,7 @@
             }
 
             document.getElementById('activity-modal').classList.add('open');
+            broadcastStateToRemote();
         }
 
         function openImageLightbox(src) {
@@ -2155,6 +2201,7 @@
             document.getElementById('modal-tile-video').src = "";
             document.getElementById('activity-modal').classList.remove('open');
             advanceTurn();
+            broadcastStateToRemote();
         }
 
         // =====================================================================
@@ -2179,11 +2226,12 @@
             reels.forEach(r => r.classList.add('spinning'));
 
             let spinTicks = 0;
-            const spinInterval = setInterval(() => {
+            chaosSpinInterval = setInterval(() => {
                 reels.forEach(r => r.innerText = (Math.floor(Math.random() * 6) + 1));
                 spinTicks++;
                 if (spinTicks > 14) {
-                    clearInterval(spinInterval);
+                    clearInterval(chaosSpinInterval);
+                    chaosSpinInterval = null;
                     reels.forEach(r => r.classList.remove('spinning'));
 
                     const roll = Math.floor(Math.random() * 6) + 1;
