@@ -1172,7 +1172,10 @@
                 <button class="modal-image-expand-btn" onclick="openImageLightbox(document.getElementById('modal-tile-img').src)">🔍 Bigger</button>
             </div>
             <p class="modal-activity-text" id="modal-tile-text">Decrypt or execute vectors immediately!</p>
-            <button class="btn-action" style="background-color: var(--primary); color: var(--dark); font-weight: bold; font-family: 'Orbitron', sans-serif; padding: 12px 30px;" onclick="closeModal()">Mission Executed & Close Relay</button>
+            <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+                <button id="modal-undo-move-btn" class="btn-action" style="background: rgba(255, 159, 28, 0.15); border-color: #ff9f1c; color: #ff9f1c; font-weight: bold; padding: 12px 24px;" onclick="undoLastMove()">⏪ Can't Do This — Send Pawn Back</button>
+                <button class="btn-action" style="background-color: var(--primary); color: var(--dark); font-weight: bold; font-family: 'Orbitron', sans-serif; padding: 12px 30px;" onclick="closeModal()">Mission Executed & Close Relay</button>
+            </div>
         </div>
     </div>
 
@@ -1899,19 +1902,12 @@
             updateAllPawnsVisual();
             drawTransportPaths();
 
-            updateStatusText(`⏪ ${playerNames[revertedPlayer]}'s move was undone. Roll again!`);
+            updateStatusText(`⏪ ${playerNames[revertedPlayer]}'s move was undone. Next player's turn!`);
 
-            // Nothing left to undo until the next roll happens.
-            positionBeforeLastRoll = null;
-            playerIndexOfLastRoll = null;
-            document.getElementById('btn-undo-move').disabled = true;
-
-            // Make sure it's still this player's turn and dice are unlocked,
-            // in case this was called mid-popup.
+            // Make sure the player whose move we just undid is the "active" one
+            // before handing off, in case this was called mid-popup.
             activePlayerIndex = revertedPlayer;
-            isAnimating = false;
-            setDiceControlsLock(false);
-            updateTurnVisual();
+            advanceTurn();
             broadcastStateToRemote();
         }
 
