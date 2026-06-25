@@ -1148,6 +1148,15 @@
         <!-- Shows only while an activity popup is open on the main screen -->
         <button id="remote-close-popup-action" class="btn-action" style="display:none; width: 100%; padding: 16px; font-size: 16px; background: var(--chaos); color: #1a0a00; border-color: var(--chaos); box-shadow: 0 0 15px var(--chaos); margin-bottom: 18px;" onclick="emitRemoteEvent('CLOSE_POPUP')">✖ Close Popup on Main Screen</button>
 
+        <!-- Shows only mid-chaos-tile, while the double-or-nothing choice is up -->
+        <div id="remote-chaos-gamble-box" style="display:none; gap:10px; margin-bottom: 18px;">
+            <button class="btn-action" style="flex:1; padding: 14px 6px; font-size: 14px; background: rgba(57, 255, 20, 0.15); border-color: var(--success); color: var(--success); font-weight:bold;" onclick="emitRemoteEvent('CHAOS_GAMBLE')">🎲 Gamble!</button>
+            <button class="btn-action" style="flex:1; padding: 14px 6px; font-size: 14px; background: rgba(255,255,255,0.1);" onclick="emitRemoteEvent('CHAOS_STAY')">Stay Put</button>
+        </div>
+
+        <!-- Shows only once the chaos result is ready to dismiss -->
+        <button id="remote-chaos-continue-action" class="btn-action" style="display:none; width: 100%; padding: 16px; font-size: 16px; background: var(--chaos); color: #1a0a00; border-color: var(--chaos); box-shadow: 0 0 15px var(--chaos); margin-bottom: 18px; font-weight:bold;" onclick="emitRemoteEvent('CHAOS_CONTINUE')">🎰 Continue</button>
+
         <!-- Always visible turn-control pair: independent Undo Move and Skip Turn -->
         <div style="display:flex; gap:10px; margin-bottom: 18px;">
             <button id="remote-undo-move-action" class="btn-danger" style="flex:1; padding: 12px 6px; font-size: 13px; background: rgba(255, 159, 28, 0.15); border-color: #ff9f1c; color: #ff9f1c;" onclick="emitRemoteEvent('UNDO_MOVE')" disabled title="Sends the pawn back to before the last roll. Same player rolls again.">⏪ Undo Move</button>
@@ -1567,6 +1576,25 @@
                         skipCurrentTurn();
                         return;
                     }
+                    if (payload.cmd === 'CHAOS_CONTINUE') {
+                        if (document.getElementById('chaos-modal').classList.contains('open') &&
+                            document.getElementById('slot-close-btn').style.display !== 'none') {
+                            closeChaosModal();
+                        }
+                        return;
+                    }
+                    if (payload.cmd === 'CHAOS_GAMBLE') {
+                        if (document.getElementById('slot-gamble-prompt').style.display === 'flex') {
+                            resolveDoubleOrNothing(true);
+                        }
+                        return;
+                    }
+                    if (payload.cmd === 'CHAOS_STAY') {
+                        if (document.getElementById('slot-gamble-prompt').style.display === 'flex') {
+                            resolveDoubleOrNothing(false);
+                        }
+                        return;
+                    }
 
                     if (isAnimating) return;
 
@@ -1629,10 +1657,29 @@
                         }
 
                         document.getElementById('remote-undo-move-action').disabled = !payload.undoAvailable;
+
+                        const chaosContinueBtn = document.getElementById('remote-chaos-continue-action');
+                        const chaosGambleBox = document.getElementById('remote-chaos-gamble-box');
+
+                        if (payload.chaosModalOpen && payload.chaosGambleOpen) {
+                            chaosGambleBox.style.display = 'flex';
+                            document.getElementById('remote-log-display').innerText = "🎰 Chaos Tile! Choose on the main screen or here.";
+                        } else {
+                            chaosGambleBox.style.display = 'none';
+                        }
+
+                        if (payload.chaosModalOpen && payload.chaosContinueReady) {
+                            chaosContinueBtn.style.display = 'block';
+                            document.getElementById('remote-log-display').innerText = "🎰 Chaos result is in! Tap Continue.";
+                        } else {
+                            chaosContinueBtn.style.display = 'none';
+                        }
                     }
                     if(payload.cmd === 'POPUP_CLOSED') {
                         document.getElementById('remote-close-popup-action').style.display = 'none';
                         document.getElementById('remote-image-size-action').style.display = 'none';
+                        document.getElementById('remote-chaos-continue-action').style.display = 'none';
+                        document.getElementById('remote-chaos-gamble-box').style.display = 'none';
                     }
                 }
             });
@@ -1670,6 +1717,9 @@
                 const hasImage = document.getElementById('modal-image-wrap').style.display === 'block';
                 const lightboxOpen = document.getElementById('image-lightbox-overlay').classList.contains('open');
                 const undoAvailable = !document.getElementById('btn-undo-move').disabled;
+                const chaosModalOpen = document.getElementById('chaos-modal').classList.contains('open');
+                const chaosGambleOpen = document.getElementById('slot-gamble-prompt').style.display === 'flex';
+                const chaosContinueReady = document.getElementById('slot-close-btn').style.display !== 'none';
                 p2pConnection.send({
                     cmd: 'SYNC_STATE',
                     color: playerColors[activePlayerIndex],
@@ -1679,7 +1729,10 @@
                     popupOpen: activityPopupOpen,
                     hasImage: hasImage,
                     lightboxOpen: lightboxOpen,
-                    undoAvailable: undoAvailable
+                    undoAvailable: undoAvailable,
+                    chaosModalOpen: chaosModalOpen,
+                    chaosGambleOpen: chaosGambleOpen,
+                    chaosContinueReady: chaosContinueReady
                 });
             }
         }
@@ -2395,6 +2448,7 @@
             }, 90);
 
             modal.classList.add('open');
+            broadcastStateToRemote();
         }
 
         function pickChaosEffectForRoll(roll) {
@@ -2447,6 +2501,7 @@
             document.getElementById('slot-effect-desc').innerText = message;
             document.getElementById('slot-close-btn').style.display = 'inline-block';
             updateAllPawnsVisual();
+            broadcastStateToRemote();
         }
 
         function closeChaosModal() {
@@ -2457,6 +2512,7 @@
                 isAnimating = false;
                 setDiceControlsLock(false);
                 updateStatusText(`🎰 ${playerNames[activePlayerIndex]} earned an extra turn from the Jackpot! Roll again.`);
+                broadcastStateToRemote();
                 return;
             }
 
@@ -2467,11 +2523,13 @@
             }
 
             advanceTurn();
+            broadcastStateToRemote();
         }
 
         function handleDoubleOrNothing(selectorRoll) {
             document.getElementById('slot-effect-desc').innerText = "Declare it: do you want to gamble?";
             document.getElementById('slot-gamble-prompt').style.display = 'flex';
+            broadcastStateToRemote();
         }
 
         function resolveDoubleOrNothing(wantsToGamble) {
