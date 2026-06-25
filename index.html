@@ -239,11 +239,12 @@
             font-size: 13px;
             font-weight: 500;
             color: #94a3b8;
-            cursor: pointer;
+            cursor: default;
             user-select: none;
             overflow: hidden;
             transition: all 0.2s ease;
         }
+        #board.mode-design .tile { cursor: pointer; }
 
         .tile:hover { 
             background: linear-gradient(135deg, rgba(0, 240, 255, 0.1) 0%, rgba(255,255,255,0.02) 100%);
@@ -1064,6 +1065,9 @@
             <!-- Global Structural Reset Action Button -->
             <button id="btn-global-reset" class="btn-danger" onclick="triggerGlobalReset()">🔄 Restart Game</button>
             |
+            <button id="btn-undo-move" class="btn-danger" style="background: rgba(255, 159, 28, 0.15); border-color: #ff9f1c; color: #ff9f1c;" onclick="undoLastMove()" disabled title="Moves the pawn back to where it was before this roll. Same player rolls again.">⏪ Undo Move</button>
+            <button id="btn-skip-turn" class="btn-danger" style="background: rgba(168, 85, 247, 0.15); border-color: #a855f7; color: #a855f7;" onclick="skipCurrentTurn()" title="Passes play to the next player without moving any pawn">⏭️ Skip Turn</button>
+            |
             <button id="btn-projector-mode" class="btn-action" style="background-color: rgba(0, 240, 255, 0.12); border-color: var(--primary); color: var(--primary); font-weight:bold;" onclick="enterProjectorMode()">🖥️ Big Screen Mode</button>
         </div>
 
@@ -1124,6 +1128,12 @@
 
         <!-- Shows only while an activity popup is open on the main screen -->
         <button id="remote-close-popup-action" class="btn-action" style="display:none; width: 100%; padding: 16px; font-size: 16px; background: var(--chaos); color: #1a0a00; border-color: var(--chaos); box-shadow: 0 0 15px var(--chaos); margin-bottom: 18px;" onclick="emitRemoteEvent('CLOSE_POPUP')">✖ Close Popup on Main Screen</button>
+
+        <!-- Always visible turn-control pair: independent Undo Move and Skip Turn -->
+        <div style="display:flex; gap:10px; margin-bottom: 18px;">
+            <button id="remote-undo-move-action" class="btn-danger" style="flex:1; padding: 12px 6px; font-size: 13px; background: rgba(255, 159, 28, 0.15); border-color: #ff9f1c; color: #ff9f1c;" onclick="emitRemoteEvent('UNDO_MOVE')" disabled title="Sends the pawn back to before the last roll. Same player rolls again.">⏪ Undo Move</button>
+            <button id="remote-skip-turn-action" class="btn-danger" style="flex:1; padding: 12px 6px; font-size: 13px; background: rgba(168, 85, 247, 0.15); border-color: #a855f7; color: #a855f7;" onclick="emitRemoteEvent('SKIP_TURN')" title="Passes play to the next player, no pawn moves">⏭️ Skip Turn</button>
+        </div>
         
         <!-- Adaptive Remote Input Interface Panel Container -->
         <div class="remote-ctrl-box">
@@ -1286,6 +1296,10 @@
         let activePlayerIndex = 0; 
         
         let playerPositions = [1]; 
+        // Snapshot of where the active player stood right before their most recent roll,
+        // so a host can undo that move and skip the turn if needed.
+        let positionBeforeLastRoll = null;
+        let playerIndexOfLastRoll = null;
         const playerColors = ['p-red', 'p-blue', 'p-green', 'p-yellow', 'p-orange', 'p-purple', 'p-pink', 'p-teal'];
         const playerNames = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8'];
         let boardData = {};
@@ -1523,6 +1537,14 @@
                         closeImageLightbox();
                         return;
                     }
+                    if (payload.cmd === 'UNDO_MOVE') {
+                        undoLastMove();
+                        return;
+                    }
+                    if (payload.cmd === 'SKIP_TURN') {
+                        skipCurrentTurn();
+                        return;
+                    }
 
                     if (isAnimating) return;
 
@@ -1583,6 +1605,8 @@
                         } else {
                             imageSizeBtn.style.display = 'none';
                         }
+
+                        document.getElementById('remote-undo-move-action').disabled = !payload.undoAvailable;
                     }
                     if(payload.cmd === 'POPUP_CLOSED') {
                         document.getElementById('remote-close-popup-action').style.display = 'none';
@@ -1623,6 +1647,7 @@
                 const activityPopupOpen = document.getElementById('activity-modal').classList.contains('open');
                 const hasImage = document.getElementById('modal-image-wrap').style.display === 'block';
                 const lightboxOpen = document.getElementById('image-lightbox-overlay').classList.contains('open');
+                const undoAvailable = !document.getElementById('btn-undo-move').disabled;
                 p2pConnection.send({
                     cmd: 'SYNC_STATE',
                     color: playerColors[activePlayerIndex],
@@ -1631,7 +1656,8 @@
                     animatingState: isAnimating,
                     popupOpen: activityPopupOpen,
                     hasImage: hasImage,
-                    lightboxOpen: lightboxOpen
+                    lightboxOpen: lightboxOpen,
+                    undoAvailable: undoAvailable
                 });
             }
         }
@@ -1677,6 +1703,11 @@
             }
             activePlayerIndex = 0;
             resetChaosPlayerState();
+
+            // Nothing meaningful left to undo after a full reset.
+            positionBeforeLastRoll = null;
+            playerIndexOfLastRoll = null;
+            document.getElementById('btn-undo-move').disabled = true;
             
             buildPlayerPawns(); 
             updateTurnVisual();
@@ -1714,6 +1745,10 @@
             }
             activePlayerIndex = 0;
             resetChaosPlayerState();
+
+            positionBeforeLastRoll = null;
+            playerIndexOfLastRoll = null;
+            document.getElementById('btn-undo-move').disabled = true;
             
             buildPlayerPawns();   
             updateTurnVisual();   
@@ -1827,12 +1862,75 @@
             activePlayerIndex = (activePlayerIndex + 1) % playerCount;
             updateTurnVisual();
             showTurnBanner();
+
+            // Once a turn naturally finishes, that move is final - Undo Move
+            // should only ever undo the move that's still in progress.
+            positionBeforeLastRoll = null;
+            playerIndexOfLastRoll = null;
+            const undoBtn = document.getElementById('btn-undo-move');
+            if (undoBtn) undoBtn.disabled = true;
+        }
+
+        // Force-closes any popup that might be open (activity, chaos, image lightbox),
+        // cancelling an in-progress chaos spin too, so nothing is left stuck open.
+        function forceCloseAllPopups() {
+            if (chaosSpinInterval) {
+                clearInterval(chaosSpinInterval);
+                chaosSpinInterval = null;
+            }
+            document.getElementById('chaos-modal').classList.remove('open');
+            document.getElementById('activity-modal').classList.remove('open');
+            document.getElementById('image-lightbox-overlay').classList.remove('open');
+            document.getElementById('modal-tile-video').src = "";
+            notifyRemotePopupClosed();
+        }
+
+        // Reverts the active player's pawn back to wherever it stood before their
+        // most recent roll. Closes any popup that roll triggered, but does NOT
+        // advance the turn - the same player can simply roll again.
+        function undoLastMove() {
+            if (currentMode !== 'play') return;
+            if (positionBeforeLastRoll === null || playerIndexOfLastRoll === null) return;
+
+            forceCloseAllPopups();
+
+            const revertedPlayer = playerIndexOfLastRoll;
+            playerPositions[revertedPlayer] = positionBeforeLastRoll;
+            updateAllPawnsVisual();
+            drawTransportPaths();
+
+            updateStatusText(`⏪ ${playerNames[revertedPlayer]}'s move was undone. Roll again!`);
+
+            // Nothing left to undo until the next roll happens.
+            positionBeforeLastRoll = null;
+            playerIndexOfLastRoll = null;
+            document.getElementById('btn-undo-move').disabled = true;
+
+            // Make sure it's still this player's turn and dice are unlocked,
+            // in case this was called mid-popup.
+            activePlayerIndex = revertedPlayer;
+            isAnimating = false;
+            setDiceControlsLock(false);
+            updateTurnVisual();
+            broadcastStateToRemote();
+        }
+
+        // Passes play to the next player without touching anyone's position.
+        // Works whenever it's play mode - whether or not a roll happened yet.
+        function skipCurrentTurn() {
+            if (currentMode !== 'play') return;
+
+            forceCloseAllPopups();
+            updateStatusText(`⏭️ ${playerNames[activePlayerIndex]}'s turn was skipped.`);
+            advanceTurn();
+            broadcastStateToRemote();
         }
 
         function renderBoard() {
             const board = document.getElementById('board');
             if(!board) return;
             board.innerHTML = '';
+            board.classList.toggle('mode-design', currentMode === 'design');
             
             const columns = 10;
             const rows = Math.ceil(totalTiles / columns);
@@ -2070,14 +2168,7 @@
         }
 
         function handleTileClick(id) {
-            if (currentMode !== 'design') {
-                if (isAnimating) return; 
-                if(boardData[id]?.activity || boardData[id]?.tileImage || boardData[id]?.modalImage || boardData[id]?.video) {
-                    showModal(id);
-                }
-                return;
-            }
-
+            if (currentMode !== 'design') return;
             openTileEditor(id);
         }
 
@@ -2615,6 +2706,12 @@
             
             isAnimating = true;
             setDiceControlsLock(true);
+
+            // Remember exactly where this player stood before this roll, in case
+            // the host needs to undo the move with the Undo Move button.
+            positionBeforeLastRoll = playerPositions[activePlayerIndex];
+            playerIndexOfLastRoll = activePlayerIndex;
+            document.getElementById('btn-undo-move').disabled = false;
             broadcastStateToRemote();
 
             let activePlayerName = playerNames[activePlayerIndex];
